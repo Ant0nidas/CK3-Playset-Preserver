@@ -12,7 +12,7 @@
   
 4. You will be prompted to enter the Steam directory path and other information. The process is automated, so simply follow the on-screen instructions.
 
-5. Once the installation process is complete, the playset will appear as a mod in your mod folder. You can now select it as any other mod in your launcher.
+5. Once the installation process is complete, the playset will appear as a mod in your mod folder. You can now select it like any other mod in your launcher.
 
 ### NOTES:
 
