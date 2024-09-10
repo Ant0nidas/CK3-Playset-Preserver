@@ -159,7 +159,7 @@ def create_descriptor_file(destination_path, mod_name, game_version):
         supported_version="{game_version}.*"
         """)
     descriptor_path = destination_path / "descriptor.mod"
-    with descriptor_path.open("w") as descriptor_file:
+    with descriptor_path.open("w", encoding="utf-8") as descriptor_file:
         descriptor_file.write(descriptor_content)
     print(f"Created descriptor.mod file in {destination_path}")
 
@@ -175,7 +175,7 @@ def create_mod_file(mod_directory, mod_folder_name, mod_name, game_version):
         path="mod/{mod_folder_name}"
         """)
     mod_file_path = mod_directory / f"{mod_folder_name}.mod"
-    with mod_file_path.open("w") as mod_file:
+    with mod_file_path.open("w", encoding="utf-8") as mod_file:
         mod_file.write(mod_file_content)
     print(f"Created {mod_folder_name}.mod file in {mod_directory}")
 
