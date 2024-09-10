@@ -199,7 +199,7 @@ def create_playset(ck3_directory, mod_name, mod_folder_name):
         (playset_id, playset_name, created),
     )
     db_connection.execute(
-        "INSERT INTO playsets_mods (playsetId, modId, position) VALUES (?, ?, 1);",
+        "INSERT INTO playsets_mods (playsetId, modId, position) VALUES (?, ?, 0);",
         (playset_id, mod_id),
     )
     # Commit the changes in one transaction
