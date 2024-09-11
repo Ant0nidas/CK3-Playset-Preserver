@@ -211,13 +211,15 @@ def get_new_mod_name(playset_name):
     # Default name appends current local date to original playset name.
     # E.g. "My Playset (2024-05-06)"
     date = datetime.date.today().isoformat()
-    # .mod files can't handle backslashes in names, except for \"
-    safe_playset_name = playset_name.replace("\\", "")
-    new_mod_name = f"{safe_playset_name} ({date})"
+    new_mod_name = f"{playset_name} ({date})"
 
     new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
+    new_mod_name = new_mod_name_input or new_mod_name
 
-    return new_mod_name_input or new_mod_name
+    # .mod files can't handle backslashes in names, except for \"
+    new_mod_name = new_mod_name.replace("\\", "")
+
+    return new_mod_name
 
 
 def main():
@@ -265,7 +267,10 @@ def main():
     print(f"Created new mod folder at {new_mod_folder}")
 
     # Copy mod folders based on the launcher database
+    tick = time.perf_counter()
     not_found_mods = copy_mod_folders(mods, new_mod_folder)
+    tock = time.perf_counter()
+    print(f"Finished in {tock - tick:0.4f} seconds")
 
     # Clean up the combined folder
     clean_combined_folder(new_mod_folder)
