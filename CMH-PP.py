@@ -155,7 +155,7 @@ def create_descriptor_file(destination_path, mod_name, game_version):
         tags={{
             "Utilities"
         }}
-        name="{mod_name}"
+        name="{mod_name.replace('"', '\\"')}"
         supported_version="{game_version}.*"
         """)
     descriptor_path = destination_path / "descriptor.mod"
@@ -170,7 +170,7 @@ def create_mod_file(mod_directory, mod_folder_name, mod_name, game_version):
         tags={{
             "Utilities"
         }}
-        name="{mod_name}"
+        name="{mod_name.replace('"', '\\"')}"
         supported_version="{game_version}.*"
         path="mod/{mod_folder_name}"
         """)
@@ -205,6 +205,19 @@ def create_playset(ck3_directory, mod_name, mod_folder_name):
     # Commit the changes in one transaction
     db_connection.commit()
     db_connection.close()
+
+
+def get_new_mod_name(playset_name):
+    # Default name appends current local date to original playset name.
+    # E.g. "My Playset (2024-05-06)"
+    date = datetime.date.today().isoformat()
+    # .mod files can't handle backslashes in names, except for \"
+    safe_playset_name = playset_name.replace("\\", "")
+    new_mod_name = f"{safe_playset_name} ({date})"
+
+    new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
+
+    return new_mod_name_input or new_mod_name
 
 
 def main():
@@ -242,13 +255,8 @@ def main():
     # Load the mods from the selected playset
     mods = get_playset_mods(ck3_directory, playset["id"])
 
-    # Prompt user for mod & playset name.
-    # Default name appends current local date to original playset name.
-    # E.g. "My Playset (2024-05-06)"
-    date = datetime.date.today().isoformat()
-    new_mod_name = f"{playset['name']} ({date})"
-    new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
-    new_mod_name = new_mod_name_input or new_mod_name
+    # Prompt user for mod & playset name
+    new_mod_name = get_new_mod_name(playset["name"])
 
     # Create a new folder with the name of the selected playlist
     new_mod_folder_name = get_valid_filename(new_mod_name)
