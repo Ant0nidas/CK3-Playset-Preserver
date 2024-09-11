@@ -134,7 +134,7 @@ def copy_mod_folders(mods, destination_path):
                 ignore=shutil.ignore_patterns(".git"),
                 dirs_exist_ok=True,
             )
-            print(f"Copied contents of {mod["displayName"]}")
+            print(f"Copied contents of {mod['displayName']}")
         else:
             print(f"{mod['displayName']} not found.")
             not_found_mods.append(mod["displayName"])
@@ -150,12 +150,13 @@ def clean_combined_folder(destination_path):
 
 
 def create_descriptor_file(destination_path, mod_name, game_version):
+    escaped_name = mod_name.replace('"', '\\"')
     descriptor_content = dedent(f"""\
         version="1.0"
         tags={{
             "Utilities"
         }}
-        name="{mod_name.replace('"', '\\"')}"
+        name="{escaped_name}"
         supported_version="{game_version}.*"
         """)
     descriptor_path = destination_path / "descriptor.mod"
@@ -165,12 +166,13 @@ def create_descriptor_file(destination_path, mod_name, game_version):
 
 
 def create_mod_file(mod_directory, mod_folder_name, mod_name, game_version):
+    escaped_name = mod_name.replace('"', '\\"')
     mod_file_content = dedent(f"""\
         version="1.0"
         tags={{
             "Utilities"
         }}
-        name="{mod_name.replace('"', '\\"')}"
+        name="{escaped_name}"
         supported_version="{game_version}.*"
         path="mod/{mod_folder_name}"
         """)
@@ -212,7 +214,8 @@ def get_new_mod_name(playset_name):
     # E.g. "My Playset (2024-05-06)"
     date = datetime.date.today().isoformat()
     # .mod files can't handle backslashes in names, except for \"
-    new_mod_name = f"{playset_name.replace("\\", "")} ({date})"
+    cleaned_name = playset_name.replace("\\", "")
+    new_mod_name = f"{cleaned_name} ({date})"
 
     new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
     new_mod_name = new_mod_name_input or new_mod_name
