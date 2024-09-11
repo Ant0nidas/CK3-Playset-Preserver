@@ -211,12 +211,12 @@ def get_new_mod_name(playset_name):
     # Default name appends current local date to original playset name.
     # E.g. "My Playset (2024-05-06)"
     date = datetime.date.today().isoformat()
-    new_mod_name = f"{playset_name} ({date})"
+    # .mod files can't handle backslashes in names, except for \"
+    new_mod_name = f"{playset_name.replace("\\", "")} ({date})"
 
     new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
     new_mod_name = new_mod_name_input or new_mod_name
 
-    # .mod files can't handle backslashes in names, except for \"
     new_mod_name = new_mod_name.replace("\\", "")
 
     return new_mod_name
