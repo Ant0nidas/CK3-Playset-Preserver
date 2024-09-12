@@ -1,0 +1,4 @@
+# Temporary build files
+build/
+dist/
+*.spec
