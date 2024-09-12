@@ -1,5 +1,6 @@
 import base64
 import datetime
+import os
 import pathlib
 import re
 import shutil
@@ -7,6 +8,8 @@ import sqlite3
 from textwrap import dedent
 import time
 import uuid
+
+from tqdm import tqdm
 
 
 def display_welcome_message():
@@ -38,8 +41,12 @@ def display_welcome_message():
         "Welcome to the CMH Playset Preserver for Crusader Kings 3"
         "\nGitHub repository: https://github.com/Ant0nidas/CMH-Playset-Preserver"
         "\nJoin CMH on Discord: https://discord.gg/GuDjt9YQ"
-        "\nPlease answer the prompts to continue:"
         "\n"
+        "\nAnswer the following prompts by typing a response and then pressing Enter."
+        "\nWhen a prompt has a default answer, it will appear between brackets."
+        "\nPress Enter with an empty response to accept that default."
+        "\n"
+        "\nTo exit the program at any time, press Ctrl+C."
     )
 
 
@@ -81,6 +88,7 @@ def select_playset(ck3_directory):
 
     for i, playset in enumerate(playsets):
         print(f"{i + 1}. {playset['name']}")
+    print()
     choice = int(input("Select the playset by typing the corresponding number: ")) - 1
 
     return playsets[choice]
@@ -112,34 +120,104 @@ def get_valid_filename(name):
     return s
 
 
-def copy_mod_folders(mods, destination_path):
-    not_found_mods = []
+def get_new_mod_name(playset_name):
+    # Default name appends current local date to original playset name.
+    # E.g. "My Playset (2024-05-06)"
+    date = datetime.date.today().isoformat()
+    # .mod files can't handle backslashes in names, except for \"
+    cleaned_name = playset_name.replace("\\", "")
+    new_mod_name = f"{cleaned_name} ({date})"
 
-    # Prompt to skip if some mods in playset aren't enabled
-    if not all(mod["enabled"] for mod in mods):
-        skip_disabled = input(
-            "Selected playset contains disabled mods. Skip disabled mods in preserved playset? - [y]/n: "
-        )
-        if skip_disabled.lower() != "n":
-            mods = [mod for mod in mods if mod["enabled"]]
+    while True:
+        new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
+        if "\\" not in new_mod_name_input:
+            break
+        print("ERROR: Name cannot contain \\")
+    new_mod_name = new_mod_name_input or new_mod_name
 
-    for mod in mods:
-        # Mods that are missing on disk (red error sign in launcher)
-        # have a different status from ready_to_play.
-        if mod["status"] == "ready_to_play":
-            # Copy the content of the mod folder directly into the destination
+    return new_mod_name
+
+
+def copy_mod_folders(mods, new_mod_folder, pbar=None):
+    def handle_dir(src, names):
+        # Called for every directory to be copied
+        pbar.update()
+        return [".git"] if ".git" in names else []  # Ignore .git
+
+    # Many Windows systems will error on paths >= 260 characters
+    MAX_PATH = 260
+    # Create a progress bar if one was not provided
+    if not pbar:
+        # Count the total number of directories to be copied,
+        # and make that the basis for the progress bar
+        dir_count = 0
+        for mod in mods:
+            dir_count += 1  # Count the top-level directory too
+            for _, dirs, _ in os.walk(mod["dirPath"]):
+                if ".git" in dirs:
+                    dirs.remove(".git")
+                dir_count += len(dirs)
+        # cmd.exe often doesn't handle Unicode well, so use ASCII progress bar
+        pbar = tqdm(total=dir_count, ascii=True, unit="")
+    try:
+        # Iterate through mods as a queue in the correct order
+        while mods:
+            # Keep track of the position the progress bar should revert to
+            # in case of retrying after an error
+            pbar_checkpoint = pbar.n
+            # Copy the content of the mod folder into the destination.
+            # The "ignore" function is called for every directory to be copied,
+            # so it will handle both ignoring .git and updating the progress bar
+            pbar.write(f"Copying {mods[0]['displayName']}")
             shutil.copytree(
-                mod["dirPath"],
-                str(destination_path),
-                ignore=shutil.ignore_patterns(".git"),
+                mods[0]["dirPath"],
+                new_mod_folder,
+                ignore=handle_dir,
                 dirs_exist_ok=True,
             )
-            print(f"Copied contents of {mod["displayName"]}")
+            # Remove mod from front of queue when successful
+            del mods[0]
+    except shutil.Error as e:
+        # Error's first argument is a list of (src, dst, error_msg) tuples
+        # (simultaneous errors are common)
+        _, first_error_dst, first_error_msg = e.args[0][0]
+        if (
+            len(first_error_dst) >= MAX_PATH
+            and "No such file or directory" in first_error_msg
+        ):
+            max_length = max(len(dst) for _, dst, _ in e.args[0])
+            shorter_by = max_length - MAX_PATH + 1
+            # Stop progress bar from overwriting the following exchange
+            pbar.close()
+            print()
+            shorter_path_input = input(
+                'ERROR: I/O error matching Windows "file path too long" scenario.'
+                f"\nCurrent mod folder name is {new_mod_folder.name},"
+                f"\ncausing a path to reach {max_length} characters long."
+                f"\nEnter a new folder name at least {shorter_by} characters shorter to recover and continue,"
+                "\nor press Enter to print the error and exit: "
+            )
+            if not shorter_path_input:
+                raise
+            # Preserve progress by renaming the existing folder
+            new_mod_folder = new_mod_folder.rename(
+                new_mod_folder.parent / shorter_path_input
+            )
+            print()
+            # Recreate progress bar
+            new_pbar = tqdm(
+                total=pbar.total, ascii=True, unit="", initial=pbar_checkpoint
+            )
+            # Try again to copy the remaining mods to the new destination
+            new_mod_folder = copy_mod_folders(mods, new_mod_folder, new_pbar)
         else:
-            print(f"{mod['displayName']} not found.")
-            not_found_mods.append(mod["displayName"])
+            # Don't attempt to handle any other errors
+            raise
 
-    return not_found_mods
+    pbar.close()
+
+    # Propagate correct mod folder upwards
+    return new_mod_folder
 
 
 def clean_combined_folder(destination_path):
@@ -150,41 +228,41 @@ def clean_combined_folder(destination_path):
 
 
 def create_descriptor_file(destination_path, mod_name, game_version):
+    escaped_name = mod_name.replace('"', '\\"')
     descriptor_content = dedent(f"""\
         version="1.0"
         tags={{
             "Utilities"
         }}
-        name="{mod_name.replace('"', '\\"')}"
+        name="{escaped_name}"
         supported_version="{game_version}.*"
         """)
     descriptor_path = destination_path / "descriptor.mod"
     with descriptor_path.open("w", encoding="utf-8") as descriptor_file:
         descriptor_file.write(descriptor_content)
-    print(f"Created descriptor.mod file in {destination_path}")
 
 
 def create_mod_file(mod_directory, mod_folder_name, mod_name, game_version):
+    escaped_name = mod_name.replace('"', '\\"')
     mod_file_content = dedent(f"""\
         version="1.0"
         tags={{
             "Utilities"
         }}
-        name="{mod_name.replace('"', '\\"')}"
+        name="{escaped_name}"
         supported_version="{game_version}.*"
         path="mod/{mod_folder_name}"
         """)
     mod_file_path = mod_directory / f"{mod_folder_name}.mod"
     with mod_file_path.open("w", encoding="utf-8") as mod_file:
         mod_file.write(mod_file_content)
-    print(f"Created {mod_folder_name}.mod file in {mod_directory}")
 
 
 def create_playset(ck3_directory, mod_name, mod_folder_name):
-    mod_id = str(uuid.uuid4())  # new random ID
+    mod_id = str(uuid.uuid4())  # New random ID
     mod_file = f"mod/{mod_folder_name}.mod"
     created = time.time_ns() // 1000000  # Unix time in milliseconds
-    playset_id = str(uuid.uuid4())  # new random ID
+    playset_id = str(uuid.uuid4())  # New random ID
     playset_name = mod_name
 
     db_connection = open_db_connection(ck3_directory)
@@ -207,32 +285,19 @@ def create_playset(ck3_directory, mod_name, mod_folder_name):
     db_connection.close()
 
 
-def get_new_mod_name(playset_name):
-    # Default name appends current local date to original playset name.
-    # E.g. "My Playset (2024-05-06)"
-    date = datetime.date.today().isoformat()
-    # .mod files can't handle backslashes in names, except for \"
-    new_mod_name = f"{playset_name.replace("\\", "")} ({date})"
-
-    new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
-    new_mod_name = new_mod_name_input or new_mod_name
-
-    new_mod_name = new_mod_name.replace("\\", "")
-
-    return new_mod_name
-
-
 def main():
     display_welcome_message()
 
     # Agreement prompt
+    print()
     agreement = input(
         "By using this method, you agree to not seek advice for gameplay or mod-related issues,"
         "\nbe it on the authors discord servers, steam pages, or elsewhere."
         "\nNo support or troubleshooting can be given."
-        "\nHave you understood? - y/n: "
+        "\nHave you understood? - y/[n]: "
     )
     if agreement.lower() != "y":
+        print()
         print("Exiting program. Please re-run the script if you agree to the terms.")
         return
 
@@ -245,6 +310,7 @@ def main():
     mod_directory = ck3_directory / "mod"
 
     # Select the playset based on the launcher database
+    print()
     playset = select_playset(ck3_directory)
     if playset is None:
         return
@@ -257,20 +323,40 @@ def main():
     # Load the mods from the selected playset
     mods = get_playset_mods(ck3_directory, playset["id"])
 
+    # Mods that are missing on disk (red error sign in launcher)
+    # have a different status from ready_to_play.
+    if not_found_mods := [m for m in mods if m["status"] != "ready_to_play"]:
+        print()
+        print("ERROR: The following mods cannot be found:")
+        for mod in not_found_mods:
+            mods.remove(mod)
+            print(f"- {mod['displayName']}")
+        continue_input = input("Ignore these mods and continue? - y/[n]: ")
+        if continue_input.lower() != "y":
+            print("Exiting program.")
+            return
+
+    # Skip mods disabled in playset and inform user
+    if disabled_mods := [m for m in mods if not m["enabled"]]:
+        print()
+        print(
+            "The following mods are disabled in the selected playset"
+            "\nand will NOT be included in the preserved playset:"
+        )
+        for mod in disabled_mods:
+            mods.remove(mod)
+            print(f"- {mod['displayName']}")
+
     # Prompt user for mod & playset name
     new_mod_name = get_new_mod_name(playset["name"])
 
-    # Create a new folder with the name of the selected playlist
     new_mod_folder_name = get_valid_filename(new_mod_name)
     new_mod_folder = mod_directory / new_mod_folder_name
-    new_mod_folder.mkdir(exist_ok=True)
-    print(f"Created new mod folder at {new_mod_folder}")
 
     # Copy mod folders based on the launcher database
-    tick = time.perf_counter()
-    not_found_mods = copy_mod_folders(mods, new_mod_folder)
-    tock = time.perf_counter()
-    print(f"Finished in {tock - tick:0.4f} seconds")
+    # (Mod folder may change to recover from long path errors)
+    print()
+    new_mod_folder = copy_mod_folders(mods, new_mod_folder)
 
     # Clean up the combined folder
     clean_combined_folder(new_mod_folder)
@@ -279,30 +365,20 @@ def main():
     create_descriptor_file(new_mod_folder, new_mod_name, game_version)
 
     # Create the .mod file in the root directory
-    create_mod_file(mod_directory, new_mod_folder_name, new_mod_name, game_version)
+    create_mod_file(mod_directory, new_mod_folder.name, new_mod_name, game_version)
 
     print()
+    print(f"Mod {new_mod_name} created in {new_mod_folder}")
 
-    # Summary of missing mods
-    if not_found_mods:
-        print("The following mods could not be copied:")
-        for mod_name in not_found_mods:
-            print(f"- {mod_name}")
-    else:
-        print("All mods were copied successfully")
-
+    # Prompt to create the playset in the launcher's DB
     print()
-
-    should_create_playset = input(
-        "Create playset in launcher?"
-        "\nWARNING: this operation will modify the launcher-v2.sqlite file containing your playsets."
-        "\nBack up this file or risk launcher data corruption. - y/[n]: "
-    )
-    if should_create_playset.lower() == "y":
-        create_playset(ck3_directory, new_mod_name, new_mod_folder_name)
-        print("Preserved playset created successfully")
+    create_playset_input = input("Create new playset in launcher? - [y]/n: ")
+    if create_playset_input.lower() != "n":
+        create_playset(ck3_directory, new_mod_name, new_mod_folder.name)
+        print(f"Playset {new_mod_name} created in launcher")
 
 
 if __name__ == "__main__":
     main()
+    print()
     input("Press Enter to exit...")
