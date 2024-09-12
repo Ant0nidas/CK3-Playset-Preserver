@@ -40,7 +40,12 @@ def display_welcome_message():
         "Welcome to the CMH Playset Preserver for Crusader Kings 3"
         "\nGitHub repository: https://github.com/Ant0nidas/CMH-Playset-Preserver"
         "\nJoin CMH on Discord: https://discord.gg/GuDjt9YQ"
-        "\nPlease answer the prompts to continue:"
+        "\n"
+        "\nAnswer the following prompts by typing a response and then pressing Enter."
+        "\nWhen a prompt has a default answer, it will appear between brackets."
+        "\nPress Enter with an empty response to accept that default."
+        "\n"
+        "\nTo exit the program at any time, press Ctrl+C."
     )
 
 
@@ -262,7 +267,7 @@ def main():
         "By using this method, you agree to not seek advice for gameplay or mod-related issues,"
         "\nbe it on the authors discord servers, steam pages, or elsewhere."
         "\nNo support or troubleshooting can be given."
-        "\nHave you understood? - y/n: "
+        "\nHave you understood? - y/[n]: "
     )
     if agreement.lower() != "y":
         print()
