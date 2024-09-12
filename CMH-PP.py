@@ -15,7 +15,6 @@ from tqdm import tqdm
 def display_welcome_message():
     ascii_art = dedent("""\
         &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-        &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
         &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&% *   ,,*&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
         &&&&&&&&&&&&&&&&&&&&(@. *&&&&&&&&&&&         &&&&&&&&&&&&&&&%%%%&&&&&&&&&&&&&&&&
         &&&&&&&&&&&&&&&&      &%&&&&&&&&&&&&         @&&&&&&&&&&&%.       &&&&&&&&&&&&&&
@@ -33,18 +32,18 @@ def display_welcome_message():
         &&&&&&&&&&&&&    &&&&&&&&&&&%*  &&&    /  #%&&   @&&&#   &&&&&&%*   @&&&&&&&&&&&
         &&&&&&&&&&&&&&    &%&&%&% @&&   &&&&/    &&&&#   @&&%/   @&&&&&%,   @&&&&&&&&&&&
         &&&&&&&&&&&&&&&*      .%%&&&/  (&&&&&&  &&&&&*   .@&&   ,&&&&&&&   ,#&&&&&&&&&&&
-        &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
         &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&""")
     print(ascii_art)
     print()
     print(
-        "Welcome to the CMH Playset Preserver for Crusader Kings 3"
+        "Welcome to the Crusader Kings 3 Playset Preserver - A project by Community Mods for Historicity"
         "\nGitHub repository: https://github.com/Ant0nidas/CMH-Playset-Preserver"
-        "\nJoin CMH on Discord: https://discord.gg/GuDjt9YQ"
+        "\nCMH Discord: https://discord.gg/GuDjt9YQ"
         "\n"
-        "\nAnswer the following prompts by typing a response and then pressing Enter."
-        "\nWhen a prompt has a default answer, it will appear between brackets."
-        "\nPress Enter with an empty response to accept that default."
+        "\nThis installer will read a chosen playset from your launcher and create a merged local copy of it."
+        "\nPlease respond to the following prompts by typing your answer and pressing Enter."
+        "\nIf a prompt has a default answer, it will appear in brackets."
+        "\nSimply press Enter with an empty response to accept the default answer."
         "\n"
         "\nTo exit the program at any time, press Ctrl+C."
     )
@@ -126,7 +125,7 @@ def get_new_mod_name(playset_name):
     date = datetime.date.today().isoformat()
     # .mod files can't handle backslashes in names, except for \"
     cleaned_name = playset_name.replace("\\", "")
-    new_mod_name = f"{cleaned_name} ({date})"
+    new_mod_name = f"{cleaned_name} Preserved ({date})"
 
     while True:
         new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
@@ -291,9 +290,10 @@ def main():
     # Agreement prompt
     print()
     agreement = input(
-        "By using this method, you agree to not seek advice for gameplay or mod-related issues,"
-        "\nbe it on the authors discord servers, steam pages, or elsewhere."
-        "\nNo support or troubleshooting can be given."
+        "No support or troubleshooting is provided for preserved playsets."
+        "\nBy using this method, you agree to not seek advice for gameplay or mod-related issues,"
+        "\nbe it on the authors' Discord servers, Steam pages, or elsewhere."
+		"\nYou are not allowed to distribute the preserved playset. All content belong to their respective authors."
         "\nHave you understood? - y/[n]: "
     )
     if agreement.lower() != "y":
