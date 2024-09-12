@@ -226,33 +226,21 @@ def clean_combined_folder(destination_path):
     print("Finished cleaning up.")
 
 
-def create_descriptor_file(destination_path, mod_name, game_version):
+def create_dotmod_files(mod_folder, mod_name, game_version):
     escaped_name = mod_name.replace('"', '\\"')
     descriptor_content = dedent(f"""\
         version="1.0"
         tags={{
-            "Utilities"
+        \t"Utilities"
         }}
         name="{escaped_name}"
         supported_version="{game_version}.*"
         """)
-    descriptor_path = destination_path / "descriptor.mod"
+    descriptor_path = mod_folder / "descriptor.mod"
     with descriptor_path.open("w", encoding="utf-8") as descriptor_file:
         descriptor_file.write(descriptor_content)
-
-
-def create_mod_file(mod_directory, mod_folder_name, mod_name, game_version):
-    escaped_name = mod_name.replace('"', '\\"')
-    mod_file_content = dedent(f"""\
-        version="1.0"
-        tags={{
-            "Utilities"
-        }}
-        name="{escaped_name}"
-        supported_version="{game_version}.*"
-        path="mod/{mod_folder_name}"
-        """)
-    mod_file_path = mod_directory / f"{mod_folder_name}.mod"
+    mod_file_content = descriptor_content + f'path="mod/{mod_folder.name}"\n'
+    mod_file_path = mod_folder.parent / f"{mod_folder.name}.mod"
     with mod_file_path.open("w", encoding="utf-8") as mod_file:
         mod_file.write(mod_file_content)
 
@@ -361,11 +349,8 @@ def main():
     # Clean up the combined folder
     clean_combined_folder(new_mod_folder)
 
-    # Create the descriptor.mod file
-    create_descriptor_file(new_mod_folder, new_mod_name, game_version)
-
-    # Create the .mod file in the root directory
-    create_mod_file(mod_directory, new_mod_folder.name, new_mod_name, game_version)
+    # Create the descriptor.mod and <name>.mod files
+    create_dotmod_files(new_mod_folder, new_mod_name, game_version)
 
     print()
     print(f"Mod {new_mod_name} created in {new_mod_folder}")
