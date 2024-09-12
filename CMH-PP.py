@@ -1,5 +1,6 @@
 import base64
 import datetime
+import os
 import pathlib
 import re
 import shutil
@@ -138,22 +139,42 @@ def get_new_mod_name(playset_name):
 
 
 def copy_mod_folders(mods, new_mod_folder, pbar=None):
-    # Many Windows systems will error on paths > 260 characters
+    def handle_dir(src, names):
+        # Called for every directory to be copied
+        pbar.update()
+        return [".git"] if ".git" in names else []  # Ignore .git
+
+    # Many Windows systems will error on paths >= 260 characters
     MAX_PATH = 260
     # Create a progress bar if one was not provided
-    pbar = pbar or tqdm(total=len(mods))
+    if not pbar:
+        # Count the total number of directories to be copied,
+        # and make that the basis for the progress bar
+        dir_count = 0
+        for mod in mods:
+            dir_count += 1  # Count the top-level directory too
+            for _, dirs, _ in os.walk(mod["dirPath"]):
+                if ".git" in dirs:
+                    dirs.remove(".git")
+                dir_count += len(dirs)
+        # cmd.exe often doesn't handle Unicode well, so use ASCII progress bar
+        pbar = tqdm(total=dir_count, ascii=True, unit="")
     try:
         # Iterate through mods as a queue in the correct order
         while mods:
-            # Copy the content of the mod folder into the destination
+            # Keep track of the position the progress bar should revert to
+            # in case of retrying after an error
+            pbar_checkpoint = pbar.n
+            # Copy the content of the mod folder into the destination.
+            # The "ignore" function is called for every directory to be copied,
+            # so it will handle both ignoring .git and updating the progress bar
             pbar.write(f"Copying {mods[0]['displayName']}")
             shutil.copytree(
                 mods[0]["dirPath"],
-                str(new_mod_folder),
-                ignore=shutil.ignore_patterns(".git"),
+                new_mod_folder,
+                ignore=handle_dir,
                 dirs_exist_ok=True,
             )
-            pbar.update()
             # Remove mod from front of queue when successful
             del mods[0]
     except shutil.Error as e:
@@ -161,16 +182,19 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None):
         # (simultaneous errors are common)
         _, first_error_dst, first_error_msg = e.args[0][0]
         if (
-            len(first_error_dst) > MAX_PATH
+            len(first_error_dst) >= MAX_PATH
             and "No such file or directory" in first_error_msg
         ):
+            max_length = max(len(dst) for _, dst, _ in e.args[0])
+            shorter_by = max_length - MAX_PATH + 1
             # Stop progress bar from overwriting the following exchange
             pbar.close()
             print()
             shorter_path_input = input(
-                'ERROR: I/O error matching "path too long" Windows scenario.'
-                f"\nCurrent mod folder name is {new_mod_folder.name}."
-                "\nEnter a new shorter folder name to retry,"
+                'ERROR: I/O error matching Windows "file path too long" scenario.'
+                f"\nCurrent mod folder name is {new_mod_folder.name},"
+                f"\ncausing a path to reach {max_length} characters long."
+                f"\nEnter a new folder name at least {shorter_by} characters shorter to recover and continue,"
                 "\nor press Enter to print the error and exit: "
             )
             if not shorter_path_input:
@@ -181,10 +205,13 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None):
             )
             print()
             # Recreate progress bar
-            new_pbar = tqdm(total=pbar.total, initial=pbar.n)
+            new_pbar = tqdm(
+                total=pbar.total, ascii=True, unit="", initial=pbar_checkpoint
+            )
             # Try again to copy the remaining mods to the new destination
             new_mod_folder = copy_mod_folders(mods, new_mod_folder, new_pbar)
         else:
+            # Don't attempt to handle any other errors
             raise
 
     pbar.close()
@@ -232,10 +259,10 @@ def create_mod_file(mod_directory, mod_folder_name, mod_name, game_version):
 
 
 def create_playset(ck3_directory, mod_name, mod_folder_name):
-    mod_id = str(uuid.uuid4())  # new random ID
+    mod_id = str(uuid.uuid4())  # New random ID
     mod_file = f"mod/{mod_folder_name}.mod"
     created = time.time_ns() // 1000000  # Unix time in milliseconds
-    playset_id = str(uuid.uuid4())  # new random ID
+    playset_id = str(uuid.uuid4())  # New random ID
     playset_name = mod_name
 
     db_connection = open_db_connection(ck3_directory)
