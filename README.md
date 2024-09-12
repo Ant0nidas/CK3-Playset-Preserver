@@ -1,25 +1,27 @@
-## CMM Playset Preserver: GENERAL INSTALLATION INSTRUCTIONS
+# Crusader Kings 3 Playset Preserver: GENERAL INSTALLATION INSTRUCTIONS
 
-1. Unzip the folder inside the downloaded .zip archive into your mod folder (usually at \Documents\Paradox Interactive\Crusader Kings III\mod). You need an archiving utility like 7-Zip (free, open source, cross-platform) to unzip .7z files effectively.
+This script reads playsets from the CK3 launcher and retrieves its mods, either from the Steam Workshop folder (subscription is required) or from your local mod folder. It then merges all of these mods into a new, single mod.
+## Why?
+The problem we face with each official CK3 patch is asynchronous mod updates. This results in an issue where some mods are updated, while others are not. Since Steam does not have the option to download older versions of mods, players are left with incomplete or broken playsets. It can take months before all mods in a large playset are updated.
+## How?
+A "snapshot" of a current playset of your choice is created, which is stored locally without further updates. This way, it will be possible to continue existing campaign or play older versions of CK3 until your favorite mods are updated.
 
-2. Place the .json of your playset in the mod folder. If you are new to this, follow these steps:<br/>
-2.1 Open CK3 launcher via Steam<br/>
-2.2 Select "Playsets" on the left<br/>
-2.3 Choose your playset in the dropdown menu and press on the three points next to it for options<br/>
-2.4 Select "Share", then select "DOWNLOAD FILE"<br/>
+## Step-by-Step Guide:
 
-3. Run CMH-PP.exe. This is the automatic installer.
+1. Unzip the folder from the downloaded .zip archive into your mod folder. This folder is usually located at:<br/>\Documents\Paradox Interactive\Crusader Kings III\mod<br/>You will need an archiving utility, such as 7-Zip (free, open source, and cross-platform), to unzip .zip files.
+
+3. Run CK3_PP.exe. This will launch the automatic installer.
   
-4. You will be prompted to enter the Steam directory path and other information. The process is automated, so simply follow the on-screen instructions.
+4. Follow the on-screen instructions. The process is automated, so just enter the required information when prompted.
 
-5. Once the installation process is complete, the playset will appear as a mod in your mod folder. You can now select it like any other mod in your launcher.
+5. Once the process is done, the preserved playset will appear in your launcher (a restart of the launcher is required)
 
-### NOTES:
+## NOTES:
 
-- By using this method, you agree to not seek advice for gameplay or mod-related issues, be it on the authors discord servers, steam pages, or elsewhere. No support or troubleshooting can be given.
+- No support or troubleshooting is provided for preserved playsets. By using this method, you agree not to seek advice for gameplay or mod-related issues on the authors' Discord servers, Steam pages, or elsewhere.
 
-- This script has been written with assistance by a generative pre-trained transformer AI.
+- You are not allowed to distribute the preserved playset. All content belong to their respective authors and you have to get their consents.
 
-- The installer has been developed and tested on Windows 7 or later. Mac OS and Linux are not officially supported.
+- The installer has been developed and tested on Windows. Mac OS and Linux are not officially supported.
 
-- For further assistance, troubleshooting and feature suggestions, visit us on CMH Discord: https://discord.gg/GuDjt9YQ
+- For additional help, troubleshooting, or feature suggestions, visit the CMH Discord: https://discord.gg/GuDjt9YQ
