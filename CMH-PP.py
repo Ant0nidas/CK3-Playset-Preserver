@@ -41,12 +41,13 @@ def display_welcome_message():
         "\nCMH Discord: https://discord.gg/GuDjt9YQ"
         "\n"
         "\nThis installer will read a chosen playset from your launcher and create a merged local copy of it."
-        "\nPlease respond to the following prompts by typing your answer and pressing Enter."
-        "\nIf a prompt has a default answer, it will appear in brackets."
-        "\nSimply press Enter with an empty response to accept the default answer."
         "\n"
+        "\nPlease respond to the following prompts by typing your answer and pressing Enter."
+        "\nIf a prompt has a default answer, it will appear [in brackets]."
+        "\nSimply press Enter with an empty response to accept the default answer."
         "\nTo exit the program at any time, press Ctrl+C."
     )
+    input("Press Enter to continue... ")
 
 
 def locate_ck3_directory():
