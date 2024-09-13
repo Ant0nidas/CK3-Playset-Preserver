@@ -8,7 +8,7 @@ The problem we face with each official CK3 patch is asynchronous mod updates. Th
 
 ## How?
 
-A "snapshot" of a current playset of your choice is created, which is stored locally without further updates. This way, it will be possible to continue existing campaign or play older versions of CK3 until your favorite mods are updated.
+A "snapshot" of a current playset of your choice is created, which is stored locally without further updates. This way, it will be possible to continue existing campaign or play older versions of CK3 until your favorite mods are updated. The load order of the playset is used to decide which files will appear in the snapshot, and which will not (because they should be overridden according to the playset's definition).
 
 ## Installation
 
@@ -17,7 +17,7 @@ Click "Code," choose "Download ZIP," and unzip the downloaded archive into your 
 | OS       | Default location                                                     |
 | -------- | -------------------------------------------------------------------- |
 | Windows  | `%USERPROFILE%\Documents\Paradox Interactive\Crusader Kings III\mod` |
-| macOS    | `~/Documents/Paradox Interactive/Crusader Kings III/mod`              |
+| macOS    | `~/Documents/Paradox Interactive/Crusader Kings III/mod`             |
 | Linux    | `~/.local/share/Paradox Interactive/Crusader Kings III/mod`          |
 
 To update Crusader Kings 3 Playset Preserver, delete the unzipped folder, and then install the new version.
@@ -36,9 +36,9 @@ Alternatively, clone the repository in your mod folder.
 
 4. Once the process is done, the preserved playset mod will appear in the launcher after restarting it.
 
-## NOTES:
+## Notes
 
-- Only Steam Workshop mods and local non-archived mods are read. Paradox Plaza mods and local archived mods are ignored.
+- All types of mods are handled: Steam Workshop, local, and Paradox Mods.
 
 - It isn't necessary to have the launcher open while the program runs.
 

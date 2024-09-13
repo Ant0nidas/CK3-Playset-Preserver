@@ -5,6 +5,7 @@ import pathlib
 import re
 import shutil
 import sqlite3
+import tempfile
 from textwrap import dedent
 import time
 import uuid
@@ -141,7 +142,8 @@ def get_playset_mods(ck3_directory, playset_id):
     db_connection = open_db_connection(ck3_directory)
 
     sql = (
-        "SELECT m.gameRegistryId, m.displayName, m.tags, m.requiredVersion, m.dirPath, m.status, pm.enabled"
+        "SELECT m.gameRegistryId, m.displayName, m.tags, m.requiredVersion,"
+        " m.dirPath, m.archivePath, m.status, pm.enabled"
         " FROM mods AS m"
         " JOIN playsets_mods AS pm ON m.id = pm.modId"
         " WHERE pm.playsetId = ?"
@@ -180,7 +182,7 @@ def get_new_mod_name(playset_name):
     return new_mod_name
 
 
-def copy_mod_folders(mods, new_mod_folder, pbar=None):
+def copy_mod_folders(mods, new_mod_folder, pbar=None, archive_dirs=None):
     def handle_dir(src, names):
         # Called for every directory to be copied
         pbar.update()
@@ -188,91 +190,120 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None):
 
     # Many Windows systems will error on paths >= 260 characters
     MAX_PATH = 260
-    # If there isn't already a progress bar,
-    # this is the first function call, not a recursive one
-    if not pbar:
-        # Make a copy of the mod list to modify, leaving the original unchanged
-        mods = list(mods)
-        # Count the total number of directories to be copied,
-        # and make that the basis for the progress bar
-        dir_count = 0
-        for mod in mods:
-            dir_count += 1  # Count the top-level directory too
-            for _, dirs, _ in os.walk(mod["dirPath"]):
-                # Don't count .git because it and its contents won't be copied
-                if ".git" in dirs:
-                    dirs.remove(".git")
-                dir_count += len(dirs)
-        # Create the progress bar.
-        # cmd.exe often doesn't handle Unicode well, so everyone has to use ASCII
-        # (It would be nice to detect cmd.exe and special-case it)
-        pbar = tqdm(total=dir_count, ascii=True, unit="")
     try:
-        # Iterate through mods as a queue in the correct order
-        while mods:
-            # Keep track of the position the progress bar should revert to
-            # in case of retrying after an error
-            pbar_checkpoint = pbar.n
-            # Copy the content of the mod folder into the destination.
-            # The "ignore" function is called for every directory to be copied,
-            # so it will handle both ignoring .git and updating the progress bar
-            pbar.write(f"Copying {mods[0]['displayName']}")
-            shutil.copytree(
-                mods[0]["dirPath"],
-                new_mod_folder,
-                ignore=handle_dir,
-                dirs_exist_ok=True,
-            )
-            # Remove mod from front of queue when successful
-            del mods[0]
-    except shutil.Error as e:
-        # Error's first argument is a list of (src, dst, error_msg) tuples
-        # (simultaneous errors are common)
-        _, first_error_dst, first_error_msg = e.args[0][0]
-        if (
-            len(first_error_dst) >= MAX_PATH
-            and "No such file or directory" in first_error_msg
-        ):
-            max_length = max(len(dst) for _, dst, _ in e.args[0])
-            shorter_by = max_length - MAX_PATH + 1
-            # Stop progress bar from overwriting the following exchange
-            pbar.close()
+        # If there isn't already a progress bar,
+        # this is the first function call, not a recursive one
+        if not pbar:
+            # Make a copy of the mod list to modify, leaving the original unchanged
+            mods = list(mods)
 
-            print()
-            print(
-                'ERROR: I/O error matching Windows "file path too long" scenario.'
-                f"\nCurrent mod folder name is {new_mod_folder.name},"
-                f"\ncausing a path to reach {max_length} characters long."
-            )
-            while True:
-                new_path_input = input(
-                    f"\nEnter a new folder name at least {shorter_by} characters shorter to recover and continue,"
-                    "\nor press Enter to print the error and exit: "
-                ).strip()
-                if not new_path_input:
-                    raise
-                elif "\t" in new_path_input:
-                    print("ERROR: Folder name cannot contain tab character")
-                elif matches := re.findall(r'[*"./:<>?\\|]', new_path_input):
-                    print(f'ERROR: Folder name cannot contain {"".join(matches)}')
+            archive_dirs = {}
+            # Count the total number of directories to be copied,
+            # and make that the basis for the progress bar
+            dir_count = 0
+            for mod in mods:
+                dir_count += 1  # Count the top-level directory too
+                if mod["archivePath"]:
+                    # Paradox Mods
+                    # The archive is extracted to a temporary directory before being
+                    # copied like the others to simplify error handling in the
+                    # path-too-long scenario. This does waste some time and space.
+                    td = tempfile.TemporaryDirectory()
+                    shutil.unpack_archive(mod["archivePath"], td.name)
+                    archive_dirs[mod["archivePath"]] = td
+                    mod_path = td.name
                 else:
-                    break
-            # Preserve progress by renaming the existing folder
-            new_mod_folder = new_mod_folder.rename(
-                new_mod_folder.parent / new_path_input
-            )
-            print()
-            # Recreate progress bar
-            new_pbar = tqdm(
-                total=pbar.total, ascii=True, unit="", initial=pbar_checkpoint
-            )
-            # Try again to copy the remaining mods to the new destination
-            new_mod_folder = copy_mod_folders(mods, new_mod_folder, new_pbar)
-        else:
-            # Don't attempt to handle any other errors
-            raise
+                    # Steam Workshop and local mods
+                    mod_path = mod["dirPath"]
+                for _, dirs, _ in os.walk(mod_path):
+                    # Don't count .git because it and its contents won't be copied
+                    if ".git" in dirs:
+                        dirs.remove(".git")
+                    dir_count += len(dirs)
+            # Create the progress bar.
+            # cmd.exe often doesn't handle Unicode well, so everyone has to use ASCII
+            # (It would be nice to detect cmd.exe and special-case it)
+            pbar = tqdm(total=dir_count, ascii=True, unit="")
+        try:
+            # Iterate through mods as a queue in the correct order
+            while mods:
+                # Keep track of the position the progress bar should revert to
+                # in case of retrying after an error
+                pbar_checkpoint = pbar.n
+                # Copy the content of the mod folder into the destination.
+                # The "ignore" function is called for every directory to be copied,
+                # so it will handle both ignoring .git and updating the progress bar
+                pbar.write(f"Copying {mods[0]['displayName']}")
+                if archive_path := mods[0]["archivePath"]:
+                    mod_path = archive_dirs[archive_path].name
+                else:
+                    mod_path = mods[0]["dirPath"]
+                shutil.copytree(
+                    mod_path,
+                    new_mod_folder,
+                    ignore=handle_dir,
+                    dirs_exist_ok=True,
+                )
+                if archive_path:
+                    # Clean up temporary directory of archive contents
+                    archive_dirs[archive_path].cleanup()
+                    del archive_dirs[archive_path]
+                # Remove mod from front of queue when successful
+                del mods[0]
+        except shutil.Error as e:
+            # Error's first argument is a list of (src, dst, error_msg) tuples
+            # (simultaneous errors are common)
+            _, first_error_dst, first_error_msg = e.args[0][0]
+            if (
+                len(first_error_dst) >= MAX_PATH
+                and "No such file or directory" in first_error_msg
+            ):
+                max_length = max(len(dst) for _, dst, _ in e.args[0])
+                shorter_by = max_length - MAX_PATH + 1
+                # Stop progress bar from overwriting the following exchange
+                pbar.close()
 
-    pbar.close()
+                print()
+                print(
+                    'ERROR: I/O error matching Windows "file path too long" scenario.'
+                    f"\nCurrent mod folder name is {new_mod_folder.name},"
+                    f"\ncausing a path to reach {max_length} characters long."
+                )
+                while True:
+                    new_path_input = input(
+                        f"\nEnter a new folder name at least {shorter_by} characters shorter to recover and continue,"
+                        "\nor press Enter to print the error and exit: "
+                    ).strip()
+                    if not new_path_input:
+                        raise
+                    elif "\t" in new_path_input:
+                        print("ERROR: Folder name cannot contain tab character")
+                    elif matches := re.findall(r'[*"./:<>?\\|]', new_path_input):
+                        print(f'ERROR: Folder name cannot contain {"".join(matches)}')
+                    else:
+                        break
+                # Preserve progress by renaming the existing folder
+                new_mod_folder = new_mod_folder.rename(
+                    new_mod_folder.parent / new_path_input
+                )
+                print()
+                # Recreate progress bar
+                new_pbar = tqdm(
+                    total=pbar.total, ascii=True, unit="", initial=pbar_checkpoint
+                )
+                # Try again to copy the remaining mods to the new destination
+                new_mod_folder = copy_mod_folders(
+                    mods, new_mod_folder, new_pbar, archive_dirs
+                )
+            else:
+                # Don't attempt to handle any other errors
+                raise
+
+        pbar.close()
+    finally:
+        if archive_dirs:
+            for td in archive_dirs.values():
+                td.cleanup()
 
     # Propagate correct mod folder upwards
     return new_mod_folder
@@ -428,6 +459,7 @@ def main():
     # Copy mod folders based on the launcher database
     # (Mod folder may change to recover from long path errors)
     print()
+    print("Starting copy operation...")
     new_mod_folder = copy_mod_folders(mods, new_mod_folder)
 
     # Clean up the combined folder
@@ -441,7 +473,9 @@ def main():
 
     # Prompt to create the playset in the launcher's DB
     print()
-    create_playset_input = input("Create a new playset in launcher containing only this new mod? - [y]/n: ")
+    create_playset_input = input(
+        "Create a new playset in launcher containing only this new mod? - [y]/n: "
+    )
     if create_playset_input.lower() != "n":
         create_playset(ck3_directory, new_mod_name, new_mod_folder.name)
         print(f"Playset {new_mod_name} created in launcher")
