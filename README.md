@@ -44,6 +44,8 @@ Alternatively, clone the repository in your mod folder.
 
 - The program will not overwrite an existing mod.
 
+- The created mod will have a README documenting all source mods and their versions, and another file indicating which source mod provided each file (inspired by CK2's HIP).
+
 - No support or troubleshooting is provided for preserved playsets. By using this method, you agree not to seek advice for gameplay or mod-related issues on the authors' Discord servers, Steam pages, or elsewhere.
 
 - You are not allowed to distribute the preserved playset. All content belong to their respective authors and you have to get their consents.

@@ -1,7 +1,7 @@
-import datetime
+from datetime import date
 import json
 import os
-import pathlib
+from pathlib import Path
 import re
 import shutil
 import sqlite3
@@ -37,7 +37,7 @@ def display_welcome_message():
     print()
     print(
         "Welcome to the Crusader Kings 3 Playset Preserver - A project by Community Mods for Historicity"
-        "\nGitHub repository: https://github.com/Ant0nidas/CMH-Playset-Preserver"
+        "\nGitHub repository: https://github.com/Ant0nidas/CK3-Playset-Preserver"
         "\nCMH Discord: https://discord.gg/GuDjt9YQ"
         "\n"
         "\nThis program will read a chosen playset from your launcher and create a merged local copy of it."
@@ -51,7 +51,7 @@ def display_welcome_message():
 
 
 def locate_ck3_directory():
-    current_path = pathlib.Path(__file__).resolve()
+    current_path = Path(__file__).resolve()
 
     # Try parent directories successively
     for path in current_path.parents:
@@ -141,8 +141,8 @@ def get_playset_mods(ck3_directory, playset_id):
     db_connection = open_db_connection(ck3_directory)
 
     sql = (
-        "SELECT m.gameRegistryId, m.displayName, m.tags, m.requiredVersion,"
-        " m.dirPath, m.archivePath, m.status, pm.enabled"
+        "SELECT m.gameRegistryId, m.displayName, m.version, m.tags,"
+        " m.requiredVersion, m.dirPath, m.archivePath, m.status, pm.enabled"
         " FROM mods AS m"
         " JOIN playsets_mods AS pm ON m.id = pm.modId"
         " WHERE pm.playsetId = ?"
@@ -157,10 +157,9 @@ def get_playset_mods(ck3_directory, playset_id):
 def get_new_mod_name(playset_name, mod_directory):
     # Default name appends current local date to original playset name.
     # E.g. "My Playset (2024-05-06)"
-    date = datetime.date.today().isoformat()
     # Remove tabs and backslashes
     cleaned_name = re.sub(r"\t\\", "", playset_name)
-    default_mod_name = f"{cleaned_name} ({date})"
+    default_mod_name = f"{cleaned_name} ({date.today()})"
 
     while True:
         new_mod_name = input(
@@ -188,48 +187,13 @@ def get_new_mod_name(playset_name, mod_directory):
     return new_mod_name, new_mod_folder
 
 
-def copy_mod_folders(mods, new_mod_folder, pbar=None, archive_dirs=None):
-    def handle_dir(src, names):
-        # Called for every directory to be copied
-        pbar.update()
-        return [".git"] if ".git" in names else []  # Ignore .git
+def copy_mod_folders(mods, new_mod_folder):
+    def copy_mod_folders_with_retry(new_mod_folder, pbar):
+        def handle_dir(src, names):
+            # Called for every directory to be copied
+            pbar.update()
+            return [".git"] if ".git" in names else []  # Ignore .git
 
-    # Many Windows systems will error on paths >= 260 characters
-    MAX_PATH = 260
-    try:
-        # If there isn't already a progress bar,
-        # this is the first function call, not a recursive one
-        if not pbar:
-            # Make a copy of the mod list to modify, leaving the original unchanged
-            mods = list(mods)
-
-            archive_dirs = {}
-            # Count the total number of directories to be copied,
-            # and make that the basis for the progress bar
-            dir_count = 0
-            for mod in mods:
-                dir_count += 1  # Count the top-level directory too
-                if mod["archivePath"]:
-                    # Paradox Mods
-                    # The archive is extracted to a temporary directory before being
-                    # copied like the others to simplify error handling in the
-                    # path-too-long scenario. This does waste some time and space.
-                    td = tempfile.TemporaryDirectory()
-                    shutil.unpack_archive(mod["archivePath"], td.name)
-                    archive_dirs[mod["archivePath"]] = td
-                    mod_path = td.name
-                else:
-                    # Steam Workshop and local mods
-                    mod_path = mod["dirPath"]
-                for _, dirs, _ in os.walk(mod_path):
-                    # Don't count .git because it and its contents won't be copied
-                    if ".git" in dirs:
-                        dirs.remove(".git")
-                    dir_count += len(dirs)
-            # Create the progress bar.
-            # cmd.exe often doesn't handle Unicode well, so everyone has to use ASCII
-            # (It would be nice to detect cmd.exe and special-case it)
-            pbar = tqdm(total=dir_count, ascii=True, unit="")
         try:
             # Iterate through mods as a queue in the correct order
             while mods:
@@ -272,7 +236,7 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None, archive_dirs=None):
                 print()
                 print(
                     'ERROR: I/O error matching Windows "file path too long" scenario.'
-                    f"\nCurrent mod folder name is {new_mod_folder.name},"
+                    f'\nCurrent mod folder name is "{new_mod_folder.name}",'
                     f"\ncausing a path to reach {max_length} characters long."
                 )
                 while True:
@@ -285,9 +249,9 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None, archive_dirs=None):
                     elif "\t" in new_path_input:
                         print("ERROR: Folder name cannot contain tab character")
                     elif new_path_input.endswith("."):
-                        print('ERROR: Folder name cannot end with .')
+                        print("ERROR: Folder name cannot end with .")
                     elif matches := re.findall(r'[*"/:<>?\\|]', new_path_input):
-                        print(f'ERROR: Folder name cannot contain {"".join(matches)}')
+                        print(f"ERROR: Folder name cannot contain {''.join(matches)}")
                     else:
                         replacement_folder = new_mod_folder.parent / new_path_input
                         if replacement_folder.exists():
@@ -299,24 +263,69 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None, archive_dirs=None):
                 print()
                 # Recreate progress bar
                 new_pbar = tqdm(
-                    total=pbar.total, ascii=True, unit="", initial=pbar_checkpoint
+                    total=pbar.total, initial=pbar_checkpoint, **tqdm_kwargs
                 )
                 # Try again to copy the remaining mods to the new destination
-                new_mod_folder = copy_mod_folders(
-                    mods, new_mod_folder, new_pbar, archive_dirs
-                )
+                new_mod_folder = copy_mod_folders_with_retry(new_mod_folder, new_pbar)
             else:
                 # Don't attempt to handle any other errors
                 raise
 
         pbar.close()
+        # Propagate folder upwards, in case it changed
+        return new_mod_folder
+
+    # Many Windows systems will error on paths >= 260 characters
+    MAX_PATH = 260
+
+    # cmd.exe often doesn't handle Unicode well, so everyone has to use ASCII
+    # (It would be nice to detect cmd.exe and special-case it)
+    tqdm_kwargs = {"ascii": True, "unit": ""}
+
+    # This dict is used to generate file_to_mod_map.txt later
+    file_to_mod_map = {}
+
+    # Make a copy of the mod list to modify, leaving the original unchanged
+    mods = list(mods)
+
+    archive_dirs = {}
+    # Count the total number of directories to be copied,
+    # and make that the basis for the progress bar
+    dir_count = 0
+    try:
+        for mod in mods:
+            dir_count += 1  # Count the top-level directory too
+            if mod["archivePath"]:
+                # Paradox Mods
+                # The archive is extracted to a temporary directory before being
+                # copied like the others to simplify processing. This does waste
+                # a little time and space.
+                td = tempfile.TemporaryDirectory()
+                shutil.unpack_archive(mod["archivePath"], td.name)
+                archive_dirs[mod["archivePath"]] = td
+                mod_path = td.name
+            else:
+                # Steam Workshop and local mods
+                mod_path = mod["dirPath"]
+            for root, dirs, files in os.walk(mod_path):
+                rel_root = Path(root).relative_to(mod_path)
+                if rel_root != Path("."): # top-level files are removed
+                    for file in files:
+                        file_to_mod_map[rel_root / file] = mod["displayName"]
+                # Don't count .git because it and its contents won't be copied
+                if ".git" in dirs:
+                    dirs.remove(".git")
+                dir_count += len(dirs)
+        # Create the progress bar
+        pbar = tqdm(total=dir_count, **tqdm_kwargs)
+        new_mod_folder = copy_mod_folders_with_retry(new_mod_folder, pbar)
     finally:
         if archive_dirs:
             for td in archive_dirs.values():
                 td.cleanup()
 
     # Propagate correct mod folder upwards
-    return new_mod_folder
+    return new_mod_folder, file_to_mod_map
 
 
 def clean_combined_folder(destination_path):
@@ -368,6 +377,26 @@ def create_dotmod_files(new_mod_folder, new_mod_name, game_version, mods):
     descriptor_path = new_mod_folder / "descriptor.mod"
     with descriptor_path.open("w", encoding="utf-8", newline="") as file:
         file.writelines(x + "\n" for x in lines)
+
+
+def create_mod_version_files(new_mod_folder, playset, mods, file_to_mod_map):
+    with (new_mod_folder / "README.txt").open("w", encoding="utf-8") as f:
+        print(
+            "This mod was generated using Crusader Kings 3 Playset Preserver."
+            "\nGitHub repository: https://github.com/Ant0nidas/CK3-Playset-Preserver"
+            "\nCMH Discord: https://discord.gg/GuDjt9YQ",
+            file=f,
+        )
+        print(file=f)
+        print(f"Source playset: {playset['name']}", file=f)
+        print(f"Date: {date.today()}", file=f)
+        print("Contents:", file=f)
+        for mod in mods:
+            print(f"{mod['displayName']} ({mod['version']})", file=f)
+
+    with (new_mod_folder / "file_to_mod_map.txt").open("w", encoding="utf-8") as f:
+        for file, mod in sorted(file_to_mod_map.items()):
+            print(f"{file} <- [{mod}]", file=f)
 
 
 def create_playset(ck3_directory, mod_name, mod_folder_name):
@@ -466,13 +495,15 @@ def main():
     # (Mod folder may change to recover from long path errors)
     print()
     print("Starting copy operation...")
-    new_mod_folder = copy_mod_folders(mods, new_mod_folder)
+    new_mod_folder, file_to_mod_map = copy_mod_folders(mods, new_mod_folder)
 
     # Clean up the combined folder
     clean_combined_folder(new_mod_folder)
 
     # Create the <name>.mod and descriptor.mod files
     create_dotmod_files(new_mod_folder, new_mod_name, game_version, mods)
+
+    create_mod_version_files(new_mod_folder, playset, mods, file_to_mod_map)
 
     print()
     print(f"Preserved playset mod {new_mod_name} created in {new_mod_folder}")
