@@ -1,5 +1,5 @@
-import base64
 import datetime
+import json
 import os
 import pathlib
 import re
@@ -98,7 +98,7 @@ def get_playset_mods(ck3_directory, playset_id):
     db_connection = open_db_connection(ck3_directory)
 
     sql = (
-        "SELECT m.displayName, m.dirPath, m.status, pm.enabled"
+        "SELECT m.gameRegistryId, m.displayName, m.tags, m.requiredVersion, m.dirPath, m.status, pm.enabled"
         " FROM mods AS m"
         " JOIN playsets_mods AS pm ON m.id = pm.modId"
         " WHERE pm.playsetId = ?"
@@ -110,29 +110,28 @@ def get_playset_mods(ck3_directory, playset_id):
     return mods
 
 
-def get_valid_filename(name):
-    # Remove/replace characters unsafe for filenames the way Django does it
-    s = str(name).strip().replace(" ", "_")
-    s = re.sub(r"[^-\w.]", "", s)
-    if s in {"", ".", ".."}:
-        # For pathological cases, fall back to base64
-        return base64.urlsafe_b64encode(name)
-    return s
-
-
 def get_new_mod_name(playset_name):
     # Default name appends current local date to original playset name.
     # E.g. "My Playset (2024-05-06)"
     date = datetime.date.today().isoformat()
-    # .mod files can't handle backslashes in names, except for \"
+    # .mod files can't handle backslashes in names (except for \")
     cleaned_name = playset_name.replace("\\", "")
-    new_mod_name = f"{cleaned_name} Preserved ({date})"
+    new_mod_name = f"{cleaned_name} ({date})"
 
     while True:
-        new_mod_name_input = input(f"Enter preserved playset name [{new_mod_name}]: ")
-        if "\\" not in new_mod_name_input:
+        new_mod_name_input = input(
+            f"Enter preserved playset name [{new_mod_name}]: "
+        ).strip()
+        if not new_mod_name_input:
             break
-        print("ERROR: Name cannot contain \\")
+        elif "\\" in new_mod_name_input:
+            print("ERROR: Name cannot contain \\")
+        elif "\t" in new_mod_name_input:
+            print("ERROR: Name cannot contain tab character")
+        elif len(new_mod_name_input) < 3:
+            print("ERROR: Name must be at least 3 characters long")
+        else:
+            break
     new_mod_name = new_mod_name_input or new_mod_name
 
     return new_mod_name
@@ -146,18 +145,24 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None):
 
     # Many Windows systems will error on paths >= 260 characters
     MAX_PATH = 260
-    # Create a progress bar if one was not provided
+    # If there isn't already a progress bar,
+    # this is the first function call, not a recursive one
     if not pbar:
+        # Make a copy of the mod list to modify, leaving the original unchanged
+        mods = list(mods)
         # Count the total number of directories to be copied,
         # and make that the basis for the progress bar
         dir_count = 0
         for mod in mods:
             dir_count += 1  # Count the top-level directory too
             for _, dirs, _ in os.walk(mod["dirPath"]):
+                # Don't count .git because it and its contents won't be copied
                 if ".git" in dirs:
                     dirs.remove(".git")
                 dir_count += len(dirs)
-        # cmd.exe often doesn't handle Unicode well, so use ASCII progress bar
+        # Create the progress bar.
+        # cmd.exe often doesn't handle Unicode well, so everyone has to use ASCII
+        # (It would be nice to detect cmd.exe and special-case it)
         pbar = tqdm(total=dir_count, ascii=True, unit="")
     try:
         # Iterate through mods as a queue in the correct order
@@ -189,19 +194,29 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None):
             shorter_by = max_length - MAX_PATH + 1
             # Stop progress bar from overwriting the following exchange
             pbar.close()
+
             print()
-            shorter_path_input = input(
+            print(
                 'ERROR: I/O error matching Windows "file path too long" scenario.'
                 f"\nCurrent mod folder name is {new_mod_folder.name},"
                 f"\ncausing a path to reach {max_length} characters long."
-                f"\nEnter a new folder name at least {shorter_by} characters shorter to recover and continue,"
-                "\nor press Enter to print the error and exit: "
             )
-            if not shorter_path_input:
-                raise
+            while True:
+                new_path_input = input(
+                    f"\nEnter a new folder name at least {shorter_by} characters shorter to recover and continue,"
+                    "\nor press Enter to print the error and exit: "
+                ).strip()
+                if not new_path_input:
+                    raise
+                elif "\t" in new_path_input:
+                    print("ERROR: Folder name cannot contain tab character")
+                elif matches := re.findall(r'[*"./:<>?\\|]', new_path_input):
+                    print(f'ERROR: Folder name cannot contain {"".join(matches)}')
+                else:
+                    break
             # Preserve progress by renaming the existing folder
             new_mod_folder = new_mod_folder.rename(
-                new_mod_folder.parent / shorter_path_input
+                new_mod_folder.parent / new_path_input
             )
             print()
             # Recreate progress bar
@@ -221,29 +236,53 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None):
 
 
 def clean_combined_folder(destination_path):
+    # A mess of thumbnails and READMEs wind up at the top of the mod folder.
+    # Remove all of them
     for item in destination_path.iterdir():
         if item.is_file():
             item.unlink()
-    print("Finished cleaning up.")
 
 
-def create_dotmod_files(mod_folder, mod_name, game_version):
-    escaped_name = mod_name.replace('"', '\\"')
-    descriptor_content = dedent(f"""\
-        version="1.0"
-        tags={{
-        \t"Utilities"
-        }}
-        name="{escaped_name}"
-        supported_version="{game_version}.*"
-        """)
-    descriptor_path = mod_folder / "descriptor.mod"
-    with descriptor_path.open("w", encoding="utf-8") as descriptor_file:
-        descriptor_file.write(descriptor_content)
-    mod_file_content = descriptor_content + f'path="mod/{mod_folder.name}"\n'
-    mod_file_path = mod_folder.parent / f"{mod_folder.name}.mod"
-    with mod_file_path.open("w", encoding="utf-8") as mod_file:
-        mod_file.write(mod_file_content)
+def create_dotmod_files(new_mod_folder, new_mod_name, game_version, mods):
+    # Gather mod tags from already-fetched data
+    # and replace_path lines from their .mod files
+    tags = set()
+    replace_paths = set()
+    for mod in mods:
+        # The tags column from the DB is JSON. There should never be
+        # quotation marks inside the tags, but escape them just in case.
+        tags.update(tag.replace('"', '\\"') for tag in json.loads(mod["tags"]))
+        src_mod_file_path = new_mod_folder.parent.parent / mod["gameRegistryId"]
+        with src_mod_file_path.open(encoding="utf-8") as file:
+            # Read .mod file with excessive tolerance
+            for line in file:
+                regex = r'\s*replace_path\s*=\s*"([^"]*(?:\\"[^"]*)*)"\s*(?:#.*)?'
+                if match := re.fullmatch(regex, line):
+                    replace_paths.add(match[1])
+
+    escaped_name = new_mod_name.replace('"', '\\"')
+    lines = [
+        'version="1.0.0"\n',
+        "tags={\n",
+        *(f'\t"{tag}"\n' for tag in sorted(tags)),
+        "}\n",
+        f'name="{escaped_name}"\n',
+        f'supported_version="{game_version}"\n',
+        path_line := f'path="mod/{new_mod_folder.name}"\n',
+        *(f'replace_path="{path}"\n' for path in sorted(replace_paths)),
+    ]
+
+    # UTF-8 encoding, LF line endings
+    mod_file_path = new_mod_folder.parent / f"{new_mod_folder.name}.mod"
+    with mod_file_path.open("w", encoding="utf-8", newline="") as file:
+        file.writelines(lines)
+
+    # descriptor.mod normally lacks the path line
+    lines.remove(path_line)
+
+    descriptor_path = new_mod_folder / "descriptor.mod"
+    with descriptor_path.open("w", encoding="utf-8", newline="") as file:
+        file.writelines(lines)
 
 
 def create_playset(ck3_directory, mod_name, mod_folder_name):
@@ -282,7 +321,7 @@ def main():
         "No support or troubleshooting is provided for preserved playsets."
         "\nBy using this method, you agree to not seek advice for gameplay or mod-related issues,"
         "\nbe it on the authors' Discord servers, Steam pages, or elsewhere."
-		"\nYou are not allowed to distribute the preserved playset. All content belong to their respective authors."
+        "\nYou are not allowed to distribute the preserved playset. All content belong to their respective authors."
         "\nHave you understood? - y/[n]: "
     )
     if agreement.lower() != "y":
@@ -305,8 +344,9 @@ def main():
         return
 
     # Prompt for the game version
-    game_version = input(
-        "Enter the game version this collection will be created for (e.g., 1.12): "
+    game_version = (
+        input("Enter the game version this collection will be created for [1.12.*]: ")
+        or "1.12.*"
     )
 
     # Load the mods from the selected playset
@@ -339,7 +379,8 @@ def main():
     # Prompt user for mod & playset name
     new_mod_name = get_new_mod_name(playset["name"])
 
-    new_mod_folder_name = get_valid_filename(new_mod_name)
+    # Remove/replace characters disallowed in filename
+    new_mod_folder_name = re.sub(r'[*"./:<>?|]', "", new_mod_name)
     new_mod_folder = mod_directory / new_mod_folder_name
 
     # Copy mod folders based on the launcher database
@@ -350,8 +391,8 @@ def main():
     # Clean up the combined folder
     clean_combined_folder(new_mod_folder)
 
-    # Create the descriptor.mod and <name>.mod files
-    create_dotmod_files(new_mod_folder, new_mod_name, game_version)
+    # Create the <name>.mod and descriptor.mod files
+    create_dotmod_files(new_mod_folder, new_mod_name, game_version, mods)
 
     print()
     print(f"Mod {new_mod_name} created in {new_mod_folder}")
