@@ -9,7 +9,6 @@ from textwrap import dedent
 import time
 import uuid
 
-import semver
 from tqdm import tqdm
 
 
@@ -96,25 +95,42 @@ def select_playset(ck3_directory):
 
 
 def get_game_version(mods):
+    def sort_key(version):
+        # CK3 version matching rules:
+        # * matches 0 or more characters (including .)
+        # a spec like 1.* will match version 1
+        tokens = re.findall(r"\w+|[^\w*]+|\*", version)
+        # Sort numeric after non-numeric (edge case)
+        tokens = [
+            (True, int(t)) if re.fullmatch(r"\d+", t, re.A) else (False, t)
+            for t in tokens
+        ]
+        dotstar = [(False, "."), (False, "*")]
+        tokens_min = tokens[:-2] if tokens[-2:] == dotstar else tokens
+        # Compare first by minimum version described by the range
+        min_key = [t for t in tokens_min if t != "*"]
+        # Compare second by maximum version described by the range
+        max_key = [(t == "*", t) for t in tokens]
+        return min_key, max_key
+
     # Decide a useful version default:
     # Find the highest version required by any mod.
-    # Provide an arbitrary default if no mods have a suitable requiredVersion
+    # Provide an arbitrary default if somehow no mods have a suitable requiredVersion
     version = max(
-        filter(semver.Version.is_valid, (mod["requiredVersion"] for mod in mods)),
-        key=semver.Version.parse,
-        default="1.12.*",
+        (mod["requiredVersion"] for mod in mods), key=sort_key, default="1.12.*"
     )
 
     # Prompt user
     while True:
         version_input = input(
-            f"Enter the game version this collection will be created for [{version}]: "
+            f"Enter the game version this playset is for (* is allowed) [{version}]: "
         ).strip()
         if not version_input:
             break
-        elif not semver.Version.is_valid(version_input):
-            # semver might be too permissive, but it should be fine
-            print("ERROR: Version format must be MAJOR.MINOR.PATCH (* is allowed)")
+        elif "\\" in version_input:
+            print("ERROR: Game version cannot contain \\")
+        elif "\t" in version_input:
+            print("ERROR: Game version cannot contain tab character")
         else:
             version = version_input
             break
@@ -289,13 +305,14 @@ def create_dotmod_files(new_mod_folder, new_mod_name, game_version, mods):
                     replace_paths.add(match[1])
 
     escaped_name = new_mod_name.replace('"', '\\"')
+    escaped_game_version = game_version.replace('"', '\\"')
     lines = [
         'version="1.0.0"',
         "tags={",
         *(f'\t"{tag}"' for tag in sorted(tags)),
         "}",
         f'name="{escaped_name}"',
-        f'supported_version="{game_version}"',
+        f'supported_version="{escaped_game_version}"',
         path_line := f'path="mod/{new_mod_folder.name}"',
         *(f'replace_path="{path}"' for path in sorted(replace_paths)),
     ]
@@ -399,6 +416,7 @@ def main():
             print(f"- {mod['displayName']}")
 
     # Prompt for the game version
+    print()
     game_version = get_game_version(mods)
 
     # Prompt user for mod & playset name
