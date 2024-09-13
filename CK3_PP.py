@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 from textwrap import dedent
 import time
+import traceback
 import uuid
 
 from tqdm import tqdm
@@ -522,5 +523,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    input("Press Enter to exit...")
+    try:
+        main()
+    except:  # noqa: E722
+        # Intercept all exceptions so user can see them before the window exits
+        traceback.print_exc()
+        print()
+        input("Press Enter to exit...")
