@@ -40,7 +40,7 @@ def display_welcome_message():
         "\nGitHub repository: https://github.com/Ant0nidas/CMH-Playset-Preserver"
         "\nCMH Discord: https://discord.gg/GuDjt9YQ"
         "\n"
-        "\nThis installer will read a chosen playset from your launcher and create a merged local copy of it."
+        "\nThis program will read a chosen playset from your launcher and create a merged local copy of it."
         "\n"
         "\nPlease respond to the following prompts by typing your answer and pressing Enter."
         "\nIf a prompt has a default answer, it will appear [in brackets]."
@@ -437,17 +437,19 @@ def main():
     create_dotmod_files(new_mod_folder, new_mod_name, game_version, mods)
 
     print()
-    print(f"Mod {new_mod_name} created in {new_mod_folder}")
+    print(f"Preserved playset mod {new_mod_name} created in {new_mod_folder}")
 
     # Prompt to create the playset in the launcher's DB
     print()
-    create_playset_input = input("Create new playset in launcher? - [y]/n: ")
+    create_playset_input = input("Create a new playset in launcher containing only this new mod? - [y]/n: ")
     if create_playset_input.lower() != "n":
         create_playset(ck3_directory, new_mod_name, new_mod_folder.name)
         print(f"Playset {new_mod_name} created in launcher")
 
+    print()
+    print("If launcher is open, close and reopen it to see changes.")
+
 
 if __name__ == "__main__":
     main()
-    print()
     input("Press Enter to exit...")
