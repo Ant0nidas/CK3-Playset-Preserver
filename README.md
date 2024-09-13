@@ -42,6 +42,8 @@ Alternatively, clone the repository in your mod folder.
 
 - It isn't necessary to have the launcher open while the program runs.
 
+- The program will not overwrite an existing mod.
+
 - No support or troubleshooting is provided for preserved playsets. By using this method, you agree not to seek advice for gameplay or mod-related issues on the authors' Discord servers, Steam pages, or elsewhere.
 
 - You are not allowed to distribute the preserved playset. All content belong to their respective authors and you have to get their consents.

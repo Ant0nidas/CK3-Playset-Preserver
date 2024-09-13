@@ -155,31 +155,38 @@ def get_playset_mods(ck3_directory, playset_id):
     return mods
 
 
-def get_new_mod_name(playset_name):
+def get_new_mod_name(playset_name, mod_directory):
     # Default name appends current local date to original playset name.
     # E.g. "My Playset (2024-05-06)"
     date = datetime.date.today().isoformat()
     # Remove tabs and backslashes
     cleaned_name = re.sub(r"\t\\", "", playset_name)
-    new_mod_name = f"{cleaned_name} ({date})"
+    default_mod_name = f"{cleaned_name} ({date})"
 
     while True:
-        new_mod_name_input = input(
-            f"Enter preserved playset name [{new_mod_name}]: "
+        new_mod_name = input(
+            f"Enter preserved playset name [{default_mod_name}]: "
         ).strip()
-        if not new_mod_name_input:
-            break
-        elif "\\" in new_mod_name_input:
+        if "\\" in new_mod_name:
             print("ERROR: Name cannot contain \\")
-        elif "\t" in new_mod_name_input:
+        elif "\t" in new_mod_name:
             print("ERROR: Name cannot contain tab character")
-        elif len(new_mod_name_input) < 3:
+        elif 1 <= len(new_mod_name) < 3:
             print("ERROR: Name must be at least 3 characters long")
         else:
-            new_mod_name = new_mod_name_input
-            break
+            new_mod_name = new_mod_name or default_mod_name
+            # Remove/replace characters disallowed in filename
+            folder_name = re.sub(r'[*"/:<>?|]', "", new_mod_name).rstrip(".")
+            new_mod_folder = mod_directory / folder_name
+            dotmod = new_mod_folder.with_name(f"{new_mod_folder.name}.mod")
+            if new_mod_folder.exists():
+                print(f'ERROR: "{new_mod_folder.name}" already exists.')
+            elif dotmod.exists():
+                print(f'ERROR: "{dotmod.name}" already exists.')
+            else:
+                break
 
-    return new_mod_name
+    return new_mod_name, new_mod_folder
 
 
 def copy_mod_folders(mods, new_mod_folder, pbar=None, archive_dirs=None):
@@ -278,14 +285,18 @@ def copy_mod_folders(mods, new_mod_folder, pbar=None, archive_dirs=None):
                         raise
                     elif "\t" in new_path_input:
                         print("ERROR: Folder name cannot contain tab character")
-                    elif matches := re.findall(r'[*"./:<>?\\|]', new_path_input):
+                    elif new_path_input.endswith("."):
+                        print('ERROR: Folder name cannot end with .')
+                    elif matches := re.findall(r'[*"/:<>?\\|]', new_path_input):
                         print(f'ERROR: Folder name cannot contain {"".join(matches)}')
                     else:
-                        break
+                        replacement_folder = new_mod_folder.parent / new_path_input
+                        if replacement_folder.exists():
+                            print(f'ERROR: "{new_path_input}" already exists.')
+                        else:
+                            break
                 # Preserve progress by renaming the existing folder
-                new_mod_folder = new_mod_folder.rename(
-                    new_mod_folder.parent / new_path_input
-                )
+                new_mod_folder = new_mod_folder.rename(replacement_folder)
                 print()
                 # Recreate progress bar
                 new_pbar = tqdm(
@@ -348,7 +359,7 @@ def create_dotmod_files(new_mod_folder, new_mod_name, game_version, mods):
     ]
 
     # UTF-8 encoding, LF line endings
-    mod_file_path = new_mod_folder.parent / f"{new_mod_folder.name}.mod"
+    mod_file_path = new_mod_folder.with_name(f"{new_mod_folder.name}.mod")
     with mod_file_path.open("w", encoding="utf-8", newline="") as file:
         file.writelines(x + "\n" for x in lines)
 
@@ -449,12 +460,8 @@ def main():
     print()
     game_version = get_game_version(mods)
 
-    # Prompt user for mod & playset name
-    new_mod_name = get_new_mod_name(playset["name"])
-
-    # Remove/replace characters disallowed in filename
-    new_mod_folder_name = re.sub(r'[*"./:<>?|]', "", new_mod_name)
-    new_mod_folder = mod_directory / new_mod_folder_name
+    # Prompt user for mod/playset name
+    new_mod_name, new_mod_folder = get_new_mod_name(playset["name"], mod_directory)
 
     # Copy mod folders based on the launcher database
     # (Mod folder may change to recover from long path errors)
