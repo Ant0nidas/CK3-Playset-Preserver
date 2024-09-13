@@ -104,6 +104,7 @@ def get_game_version(mods):
         key=semver.Version.parse,
         default="1.12.*",
     )
+
     # Prompt user
     while True:
         version_input = input(
@@ -111,7 +112,8 @@ def get_game_version(mods):
         ).strip()
         if not version_input:
             break
-        elif re.fullmatch(r""):
+        elif not semver.Version.is_valid(version_input):
+            # semver might be too permissive, but it should be fine
             print("ERROR: Version format must be MAJOR.MINOR.PATCH (* is allowed)")
         else:
             version = version_input
