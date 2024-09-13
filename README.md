@@ -2,6 +2,12 @@
 
 This program reads a playset from the CK3 launcher, retrieves its mods, and copies all of them into one new single local mod which will not receive any updates.
 
+Version 1.0.0
+
+Developer: escalonn (https://github.com/escalonn) | Discord @taio.ii
+
+Release Manager: Kaepbora (https://github.com/Ant0nidas) | Discord @kaepbora
+
 ## Why?
 
 The problem we face with each official CK3 patch is asynchronous mod updates. This results in an issue where some mods are updated, while others are not. Since Steam does not have the option to download older versions of mods, players are left with incomplete or broken playsets. It can take months before all mods in a large playset are updated.
