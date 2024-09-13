@@ -1,3 +1,4 @@
+# will break if multiple .py files exist
 exe :
 	rm -rf *.exe _internal
 	pyinstaller *.py

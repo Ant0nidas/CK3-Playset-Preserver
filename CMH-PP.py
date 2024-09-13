@@ -9,6 +9,7 @@ from textwrap import dedent
 import time
 import uuid
 
+import semver
 from tqdm import tqdm
 
 
@@ -94,6 +95,31 @@ def select_playset(ck3_directory):
     return playsets[choice]
 
 
+def get_game_version(mods):
+    # Decide a useful version default:
+    # Find the highest version required by any mod.
+    # Provide an arbitrary default if no mods have a suitable requiredVersion
+    version = max(
+        filter(semver.Version.is_valid, (mod["requiredVersion"] for mod in mods)),
+        key=semver.Version.parse,
+        default="1.12.*",
+    )
+    # Prompt user
+    while True:
+        version_input = input(
+            f"Enter the game version this collection will be created for [{version}]: "
+        ).strip()
+        if not version_input:
+            break
+        elif re.fullmatch(r""):
+            print("ERROR: Version format must be MAJOR.MINOR.PATCH (* is allowed)")
+        else:
+            version = version_input
+            break
+
+    return version
+
+
 def get_playset_mods(ck3_directory, playset_id):
     db_connection = open_db_connection(ck3_directory)
 
@@ -114,8 +140,8 @@ def get_new_mod_name(playset_name):
     # Default name appends current local date to original playset name.
     # E.g. "My Playset (2024-05-06)"
     date = datetime.date.today().isoformat()
-    # .mod files can't handle backslashes in names (except for \")
-    cleaned_name = playset_name.replace("\\", "")
+    # Remove tabs and backslashes
+    cleaned_name = re.sub(r"\t\\", "", playset_name)
     new_mod_name = f"{cleaned_name} ({date})"
 
     while True:
@@ -131,8 +157,8 @@ def get_new_mod_name(playset_name):
         elif len(new_mod_name_input) < 3:
             print("ERROR: Name must be at least 3 characters long")
         else:
+            new_mod_name = new_mod_name_input
             break
-    new_mod_name = new_mod_name_input or new_mod_name
 
     return new_mod_name
 
@@ -262,27 +288,27 @@ def create_dotmod_files(new_mod_folder, new_mod_name, game_version, mods):
 
     escaped_name = new_mod_name.replace('"', '\\"')
     lines = [
-        'version="1.0.0"\n',
-        "tags={\n",
-        *(f'\t"{tag}"\n' for tag in sorted(tags)),
-        "}\n",
-        f'name="{escaped_name}"\n',
-        f'supported_version="{game_version}"\n',
-        path_line := f'path="mod/{new_mod_folder.name}"\n',
-        *(f'replace_path="{path}"\n' for path in sorted(replace_paths)),
+        'version="1.0.0"',
+        "tags={",
+        *(f'\t"{tag}"' for tag in sorted(tags)),
+        "}",
+        f'name="{escaped_name}"',
+        f'supported_version="{game_version}"',
+        path_line := f'path="mod/{new_mod_folder.name}"',
+        *(f'replace_path="{path}"' for path in sorted(replace_paths)),
     ]
 
     # UTF-8 encoding, LF line endings
     mod_file_path = new_mod_folder.parent / f"{new_mod_folder.name}.mod"
     with mod_file_path.open("w", encoding="utf-8", newline="") as file:
-        file.writelines(lines)
+        file.writelines(x + "\n" for x in lines)
 
     # descriptor.mod normally lacks the path line
     lines.remove(path_line)
 
     descriptor_path = new_mod_folder / "descriptor.mod"
     with descriptor_path.open("w", encoding="utf-8", newline="") as file:
-        file.writelines(lines)
+        file.writelines(x + "\n" for x in lines)
 
 
 def create_playset(ck3_directory, mod_name, mod_folder_name):
@@ -343,12 +369,6 @@ def main():
     if playset is None:
         return
 
-    # Prompt for the game version
-    game_version = (
-        input("Enter the game version this collection will be created for [1.12.*]: ")
-        or "1.12.*"
-    )
-
     # Load the mods from the selected playset
     mods = get_playset_mods(ck3_directory, playset["id"])
 
@@ -375,6 +395,9 @@ def main():
         for mod in disabled_mods:
             mods.remove(mod)
             print(f"- {mod['displayName']}")
+
+    # Prompt for the game version
+    game_version = get_game_version(mods)
 
     # Prompt user for mod & playset name
     new_mod_name = get_new_mod_name(playset["name"])
