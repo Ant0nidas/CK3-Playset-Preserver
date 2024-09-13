@@ -108,17 +108,16 @@ def get_game_version(mods):
         dotstar = [(False, "."), (False, "*")]
         tokens_min = tokens[:-2] if tokens[-2:] == dotstar else tokens
         # Compare first by minimum version described by the range
-        min_key = [t for t in tokens_min if t != "*"]
+        min_key = [t for t in tokens_min if t[1] != "*"]
         # Compare second by maximum version described by the range
-        max_key = [(t == "*", t) for t in tokens]
+        max_key = [(t[1] == "*", *t) for t in tokens]
         return min_key, max_key
 
     # Decide a useful version default:
     # Find the highest version required by any mod.
     # Provide an arbitrary default if somehow no mods have a suitable requiredVersion
-    version = max(
-        (mod["requiredVersion"] for mod in mods), key=sort_key, default="1.12.*"
-    )
+    mod_versions = (mod["requiredVersion"] for mod in mods)
+    version = max(mod_versions, key=sort_key, default="1.12.*")
 
     # Prompt user
     while True:
