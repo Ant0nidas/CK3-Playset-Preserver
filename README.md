@@ -4,9 +4,9 @@ This program reads a playset from the CK3 launcher, retrieves its mods, and copi
 
 Version 1.0.0
 
-Developer: escalonn (https://github.com/escalonn) | Discord @taio.ii
+Developer: escalonn (https://github.com/escalonn) | Discord @taio.ii | PDX Forum [IoannesBarbarus](https://forum.paradoxplaza.com/forum/members/ioannesbarbarus.951663/)
 
-Release Manager: Kaepbora (https://github.com/Ant0nidas) | Discord @kaepbora
+Release Manager: Kaepbora (https://github.com/Ant0nidas) | Discord @kaepbora | PDX Forum [Sir Antou](https://forum.paradoxplaza.com/forum/members/sir-antou.601346/)
 
 ## Why?
 
