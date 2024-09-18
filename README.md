@@ -18,7 +18,7 @@ A "snapshot" of a current playset of your choice is created, which is stored loc
 
 ## Installation
 
-Click "Code," choose "Download ZIP," and unzip the downloaded archive into your mod folder, so that `CK3_PP.exe` is at a location like `mod/CK3-Playset-Preserver-main/CK3_PP.exe`.
+Click "Releases," download the latest release, and unzip the downloaded archive into your mod folder, so that `CK3_PP.exe` is at a location like `mod/CK3-Playset-Preserver-v1.0.0/CK3_PP.exe`.
 
 | OS       | Default location                                                     |
 | -------- | -------------------------------------------------------------------- |
