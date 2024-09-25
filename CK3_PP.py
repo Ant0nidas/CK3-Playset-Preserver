@@ -64,17 +64,57 @@ def locate_ck3_directory():
     return None
 
 
-def open_db_connection(ck3_directory):
+def locate_database(ck3_directory):
+    # The release version of the launcher and the beta version use two different
+    # files. Either or both might be present. If both are present, the correct
+    # one should be the most recently modified one.
+    release_db = ck3_directory / "launcher-v2.sqlite"
+    beta_db = ck3_directory / "launcher-v2_openbeta.sqlite"
+
+    release_db_exists = release_db.exists()
+    beta_db_exists = beta_db.exists()
+
+    if release_db_exists and not beta_db_exists:
+        return release_db
+    if not release_db_exists and beta_db_exists:
+        return beta_db
+    print()
+    if not release_db_exists and not beta_db_exists:
+        # fall back to the most recently modified sqlite file
+        # (e.g. paradox changes to launcher-v3.sqlite)
+        fallback = max(
+            ck3_directory.glob("*.sqlite"),
+            key=lambda p: p.stat().st_mtime_ns,
+            default=None,
+        )
+        if not fallback:
+            return None
+        print("WARNING: expected launcher database not found.")
+        print(f"Attempting to proceed with {fallback.name}.")
+        return fallback
+
+    release_db_stat = release_db.stat()
+    beta_db_stat = beta_db.stat()
+
+    print("Multiple launcher databases detected.")
+    if beta_db_stat.st_mtime_ns > release_db_stat.st_mtime_ns:
+        print("Using beta launcher database (most recently modified).")
+        return beta_db
+    else:
+        print("Using release launcher database (most recently modified).")
+        return release_db
+
+
+def open_db_connection(db_path):
     # Connect to the launcher's SQLite database
-    database = str(ck3_directory / "launcher-v2.sqlite")
-    db_connection = sqlite3.connect(database)
+    db_connection = sqlite3.connect(db_path)
     # Make query results have dict-like interface
     db_connection.row_factory = sqlite3.Row
     return db_connection
 
 
-def select_playset(ck3_directory):
-    db_connection = open_db_connection(ck3_directory)
+def select_playset(db_path):
+    db_connection = open_db_connection(db_path)
 
     # List playsets in the order the launcher uses.
     # Playset names aren't required to be unique,
@@ -138,8 +178,8 @@ def get_game_version(mods):
     return version
 
 
-def get_playset_mods(ck3_directory, playset_id):
-    db_connection = open_db_connection(ck3_directory)
+def get_playset_mods(db_path, playset_id):
+    db_connection = open_db_connection(db_path)
 
     sql = (
         "SELECT m.gameRegistryId, m.displayName, m.version, m.tags,"
@@ -281,13 +321,16 @@ def copy_mod_folders(mods, new_mod_folder):
 
     # cmd.exe often doesn't handle Unicode well, so everyone has to use ASCII
     # (It would be nice to detect cmd.exe and special-case it)
-    tqdm_kwargs = {"ascii": True, "unit": ""}
+    tqdm_kwargs = {"ascii": True, "unit": "dirs"}
 
     # This dict is used to generate file_to_mod_map.txt later
     file_to_mod_map = {}
 
     # Make a copy of the mod list to modify, leaving the original unchanged
     mods = list(mods)
+
+    # Create the directory
+    new_mod_folder.mkdir()
 
     archive_dirs = {}
     # Count the total number of directories to be copied,
@@ -310,7 +353,7 @@ def copy_mod_folders(mods, new_mod_folder):
                 mod_path = mod["dirPath"]
             for root, dirs, files in os.walk(mod_path):
                 rel_root = Path(root).relative_to(mod_path)
-                if rel_root != Path("."): # top-level files are removed
+                if rel_root != Path("."):  # top-level files are removed
                     for file in files:
                         file_to_mod_map[rel_root / file] = mod["displayName"]
                 # Don't count .git because it and its contents won't be copied
@@ -400,14 +443,14 @@ def create_mod_version_files(new_mod_folder, playset, mods, file_to_mod_map):
             print(f"{file} <- [{mod}]", file=f)
 
 
-def create_playset(ck3_directory, mod_name, mod_folder_name):
+def create_playset(db_path, mod_name, mod_folder_name):
     mod_id = str(uuid.uuid4())  # New random ID
     mod_file = f"mod/{mod_folder_name}.mod"
     created = time.time_ns() // 1000000  # Unix time in milliseconds
     playset_id = str(uuid.uuid4())  # New random ID
     playset_name = mod_name
 
-    db_connection = open_db_connection(ck3_directory)
+    db_connection = open_db_connection(db_path)
     db_connection.execute(
         "INSERT INTO mods (id, gameRegistryId, displayName, status, source, createdDate) VALUES"
         " (?, ?, ?, 'ready_to_play', 'local', ?);",
@@ -441,25 +484,32 @@ def main():
     )
     if agreement.lower() != "y":
         print()
-        print("Exiting program. Please re-run the script if you agree to the terms.")
+        print("Exiting program. Please re-run the program if you agree to the terms.")
         return
 
     ck3_directory = locate_ck3_directory()
-
     if ck3_directory is None:
-        print("Game directory not found. Ensure the script is in the correct location.")
+        print()
+        print(
+            "ERROR: Game directory not found. Ensure the program is in the correct location."
+        )
         return
 
     mod_directory = ck3_directory / "mod"
 
+    db_path = locate_database(ck3_directory)
+    if db_path is None:
+        print("ERROR: Launcher database not found.")
+        return
+
     # Select the playset based on the launcher database
     print()
-    playset = select_playset(ck3_directory)
+    playset = select_playset(db_path)
     if playset is None:
         return
 
     # Load the mods from the selected playset
-    mods = get_playset_mods(ck3_directory, playset["id"])
+    mods = get_playset_mods(db_path, playset["id"])
 
     # Mods that are missing on disk (red error sign in launcher)
     # have a different status from ready_to_play.
@@ -515,7 +565,7 @@ def main():
         "Create a new playset in launcher containing only this new mod? - [y]/n: "
     )
     if create_playset_input.lower() != "n":
-        create_playset(ck3_directory, new_mod_name, new_mod_folder.name)
+        create_playset(db_path, new_mod_name, new_mod_folder.name)
         print(f"Playset {new_mod_name} created in launcher")
 
     print()
@@ -529,4 +579,5 @@ if __name__ == "__main__":
         # Intercept all exceptions so user can see them before the window exits
         traceback.print_exc()
         print()
+    finally:
         input("Press Enter to exit...")

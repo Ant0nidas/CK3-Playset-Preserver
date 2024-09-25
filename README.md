@@ -2,7 +2,7 @@
 
 This program reads a playset from the CK3 launcher, retrieves its mods, and copies all of them into one new single local mod which will not receive any updates.
 
-Version 1.0.0
+Version 1.0.1
 
 Developer: escalonn (https://github.com/escalonn) | Discord @taio.ii | PDX Forum [IoannesBarbarus](https://forum.paradoxplaza.com/forum/members/ioannesbarbarus.951663/)
 
@@ -18,7 +18,7 @@ A "snapshot" of a current playset of your choice is created, which is stored loc
 
 ## Installation
 
-Click "Releases," download the latest release, and unzip the downloaded archive into your mod folder, so that `CK3_PP.exe` is at a location like `mod/CK3-Playset-Preserver-v1.0.0/CK3_PP.exe`.
+Click "Releases," download the latest release, and unzip the downloaded archive into your mod folder, so that `CK3_PP.exe` is at a location like `mod/CK3-Playset-Preserver-v1.0.1/CK3_PP.exe`.
 
 | OS       | Default location                                                     |
 | -------- | -------------------------------------------------------------------- |
