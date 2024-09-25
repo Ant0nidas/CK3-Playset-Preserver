@@ -25,7 +25,7 @@ platforms = ["win-64", "osx-64", "linux-64"]
 channels = ["conda-forge"]
 
 [tool.pixi.tasks]
-clean = "rm -rf *.exe _internal build dist *.spec"
+clean = "rm -rf CK3_PP.exe _internal build dist CK3_PP.spec"
 start_py = "python CK3_PP.py"
 
 [tool.pixi.dependencies]
@@ -39,13 +39,12 @@ platforms = ["win-64"]
 build-dependencies = { pyinstaller = "*" }
 
 [tool.pixi.feature.build.tasks]
-# requires posix environment on windows (e.g. msys2)
-build = { cmd = "sh build.sh", inputs = [
-    "CK3_PP.py",
-], outputs = [
-    "CK3_PP.exe",
-    "_internal/*",
-] }
+build = { cmd = """\
+    rm -rf CK3_PP.exe _internal && \
+    pyinstaller CK3_PP.py && \
+    mv dist/*/* . && \
+    rm -rf dist *.spec\
+    """, inputs = ["CK3_PP.py"], outputs = ["CK3_PP.exe", "_internal/*"] }
 start = { cmd = "CK3_PP.exe", depends-on = ["build"] }
 
 [tool.pixi.feature.pypy]
