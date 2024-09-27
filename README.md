@@ -1,12 +1,13 @@
 # Crusader Kings 3 Playset Preserver
 
-This program reads a playset from the CK3 launcher, retrieves its mods, and copies all of them into one new single local mod which will not receive any updates.
+This program reads a playset from the CK3 launcher, retrieves its mods, and copies all of them into one new local mod which will be safe from unwanted updates.
 
-Version 1.0.0
+## Who?
 
-Developer: escalonn (https://github.com/escalonn) | Discord @taio.ii | PDX Forum [IoannesBarbarus](https://forum.paradoxplaza.com/forum/members/ioannesbarbarus.951663/)
-
-Release Manager: Kaepbora (https://github.com/Ant0nidas) | Discord @kaepbora | PDX Forum [Sir Antou](https://forum.paradoxplaza.com/forum/members/sir-antou.601346/)
+| Role            | GitHub                                   | Discord   | Paradox Forum                                                                          |
+| --------------- | ---------------------------------------- | --------- | -------------------------------------------------------------------------------------- |
+| Developer       | [escalonn](https://github.com/escalonn)  | @taio.ii  | [IoannesBarbarus](https://forum.paradoxplaza.com/forum/members/ioannesbarbarus.951663) |
+| Release Manager | [Kaepbora](https://github.com/Ant0nidas) | @kaepbora | [Sir Antou](https://forum.paradoxplaza.com/forum/members/sir-antou.601346)             |
 
 ## Why?
 
@@ -18,9 +19,9 @@ A "snapshot" of a current playset of your choice is created, which is stored loc
 
 ## Installation
 
-Click "Releases," download the latest release, and unzip the downloaded archive into your mod folder, so that `CK3_PP.exe` is at a location like `mod/CK3-Playset-Preserver-v1.0.0/CK3_PP.exe`.
+Download [the latest release](https://github.com/Ant0nidas/CK3-Playset-Preserver/releases/latest), and unzip the downloaded archive into your mod folder, so that `CK3_PP.exe` is at a location like `mod/CK3-Playset-Preserver-vX.Y.Z/CK3_PP.exe`.
 
-| OS       | Default location                                                     |
+| OS       | Default location of mod folder                                       |
 | -------- | -------------------------------------------------------------------- |
 | Windows  | `%USERPROFILE%\Documents\Paradox Interactive\Crusader Kings III\mod` |
 | macOS    | `~/Documents/Paradox Interactive/Crusader Kings III/mod`             |
@@ -36,7 +37,9 @@ Alternatively, clone the repository in your mod folder.
 
 2. On Windows, run `CK3_PP.exe`.
 
-    On macOS and Linux, ensure your environment satisfies `requirements.txt` and run `CK3_PP.py` with Python (>=3.8).
+    Or, on any platform, ensure your environment satisfies `requirements.txt`, and run `CK3_PP.py` with Python 3.
+
+    Or, on any platform, install [Pixi](https://pixi.sh), and run `pixi run start_py`.
 
 3. Follow the prompts until the program exits.
 
@@ -44,18 +47,18 @@ Alternatively, clone the repository in your mod folder.
 
 ## Notes
 
-- All types of mods are handled: Steam Workshop, local, and Paradox Mods.
+- **You are not allowed to distribute the preserved playset.** All contents belong to their respective authors and you have to get their consents.
+
+- **No support or troubleshooting is provided for preserved playsets.** By using this method, you agree not to seek advice for gameplay or mod-related issues on the authors' Discord servers, Steam pages, or elsewhere.
+
+- The program has been developed and tested on Windows only. MacOS and Linux support is "best effort."
+
+- All types of mods are supported: Steam Workshop, local, and Paradox Mods.
 
 - It isn't necessary to have the launcher open while the program runs.
 
-- The program will not overwrite an existing mod.
-
 - The created mod will have a README documenting all source mods and their versions, and another file indicating which source mod provided each file (inspired by CK2's HIP).
 
-- No support or troubleshooting is provided for preserved playsets. By using this method, you agree not to seek advice for gameplay or mod-related issues on the authors' Discord servers, Steam pages, or elsewhere.
+- The program will never overwrite an existing mod.
 
-- You are not allowed to distribute the preserved playset. All content belong to their respective authors and you have to get their consents.
-
-- The installer has been developed and tested on Windows. It may not work correctly on MacOS and Linux.
-
-- For additional help, troubleshooting, or feature suggestions, visit the CMH Discord: https://discord.gg/GuDjt9YQ
+- For additional help, troubleshooting, or feature suggestions, visit [the CMH Discord](https://discord.gg/GuDjt9YQ).

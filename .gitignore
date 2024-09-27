@@ -4,7 +4,7 @@ dist/
 *.manifest
 *.spec
 
-# Environments
+# environments
 .conda/
 .env
 .venv
@@ -13,3 +13,5 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.pixi
+*.egg-info
