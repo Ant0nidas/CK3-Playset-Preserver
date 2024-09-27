@@ -26,7 +26,7 @@ tqdm = ">=4.66.5,<5"
 
 [tool.pixi.pypi-dependencies]
 CK3-Playset-Preserver = { path = ".", editable = true }
-assertwt = ">=2.3.1,<3"
+AssertWT = ">=2.3.1,<3"
 
 [tool.pixi.feature.build.build-dependencies]
 pyinstaller = ">=6.10.0,<7"

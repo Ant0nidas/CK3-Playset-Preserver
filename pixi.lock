@@ -359,7 +359,7 @@ packages:
   name: ck3-playset-preserver
   version: 1.0.1
   path: .
-  sha256: 29a25c94876c475a4fd19ec8d0e9b7a28f608eac79c2ae8c3c57d3a6f0f59175
+  sha256: ee4ccbc6e82b2e4083a5b2c8b85026a72bba2e63e2605ffc2c1ae8342ffc2b25
   requires_python: '>=3.8,<3.12'
   editable: true
 - kind: conda

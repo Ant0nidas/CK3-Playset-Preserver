@@ -1,2 +1,2 @@
 tqdm == 4.66.5
-assertwt == 2.3.1 ; platform_system == "Windows"
+AssertWT == 2.3.1 ; platform_system == "Windows"
