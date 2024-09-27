@@ -1,55 +1,42 @@
 [project]
 name = "CK3-Playset-Preserver"
 version = "1.0.1"
-description = "Crusader Kings III playset merger"
+requires-python = ">=3.8,<3.12"
 authors = [{ name = "Kaepbora" }, { name = "escalonn" }]
+description = "Crusader Kings III playset merger"
+readme = "README.md"
 classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 ]
-readme = "README.md"
-requires-python = ">= 3.8"
-dependencies = []
 
 [project.urls]
 Repository = "https://github.com/Ant0nidas/CK3-Playset-Preserver"
-
-[build-system]
-build-backend = "hatchling.build"
-requires = ["hatchling"]
-
-[tool.hatch.build]
-include = ["*.py"]
 
 [tool.pixi.project]
 platforms = ["win-64", "osx-64", "linux-64"]
 channels = ["conda-forge"]
 
 [tool.pixi.tasks]
-clean = "rm -rf CK3_PP.exe _internal build dist CK3_PP.spec"
 start_py = "python CK3_PP.py"
+clean = "rm -rf CK3_PP.spec build dist CK3_PP CK3_PP.exe _internal"
+start = { cmd = "CK3_PP", depends-on = ["build"] }
 
 [tool.pixi.dependencies]
-tqdm = "*"
+tqdm = ">=4.66.5,<5"
 
 [tool.pixi.pypi-dependencies]
 CK3-Playset-Preserver = { path = ".", editable = true }
+assertwt = ">=2.3.1,<3"
 
-[tool.pixi.feature.build]
-platforms = ["win-64"]
-build-dependencies = { pyinstaller = "*" }
+[tool.pixi.feature.build.build-dependencies]
+pyinstaller = ">=6.10.0,<7"
 
 [tool.pixi.feature.build.tasks]
 build = { cmd = """\
-    rm -rf CK3_PP.exe _internal && \
-    pyinstaller CK3_PP.py && \
-    mv dist/*/* . && \
-    rm -rf dist *.spec\
-    """, inputs = ["CK3_PP.py"], outputs = ["CK3_PP.exe", "_internal/*"] }
-start = { cmd = "CK3_PP.exe", depends-on = ["build"] }
-
-[tool.pixi.feature.pypy]
-dependencies = { pypy = "*" }
+    rm -rf _internal && \
+    pyinstaller -y CK3_PP.py && \
+    mv dist/*/* .\
+""", inputs = ["CK3_PP.py"], outputs = ["CK3_PP", "CK3_PP.exe", "_internal/*"] }
 
 [tool.pixi.environments]
 build = ["build"]
-pypy = ["pypy"]

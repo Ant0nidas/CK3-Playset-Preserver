@@ -2,6 +2,7 @@ from datetime import date
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import sqlite3
@@ -49,6 +50,16 @@ def display_welcome_message():
         "\nTo exit the program at any time, press Ctrl+C."
     )
     input("Press Enter to continue... ")
+
+
+def should_use_ascii():
+    # cmd.exe has poor unicode support for nice tqdm progress bars
+    if platform.system() != "Windows":
+        return False
+
+    import assertwt
+
+    return not assertwt.is_wt()
 
 
 def locate_ck3_directory():
@@ -319,9 +330,7 @@ def copy_mod_folders(mods, new_mod_folder):
     # Many Windows systems will error on paths >= 260 characters
     MAX_PATH = 260
 
-    # cmd.exe often doesn't handle Unicode well, so everyone has to use ASCII
-    # (It would be nice to detect cmd.exe and special-case it)
-    tqdm_kwargs = {"ascii": True, "unit": "dirs"}
+    tqdm_kwargs = {"ascii": should_use_ascii(), "unit": "dirs"}
 
     # This dict is used to generate file_to_mod_map.txt later
     file_to_mod_map = {}
@@ -515,10 +524,11 @@ def main():
     # have a different status from ready_to_play.
     if not_found_mods := [m for m in mods if m["status"] != "ready_to_play"]:
         print()
-        print("ERROR: The following mods cannot be found:")
+        print("ERROR: The launcher cannot find the following mods:")
         for mod in not_found_mods:
             mods.remove(mod)
             print(f"- {mod['displayName']}")
+        print("Unsubscribing, resubscribing, and restarting the launcher might resolve this.")
         continue_input = input("Ignore these mods and continue? - y/[n]: ")
         if continue_input.lower() != "y":
             print("Exiting program.")
